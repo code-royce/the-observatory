@@ -4,6 +4,30 @@
 .env
 .env.*
 !.env.example
+.flaskenv
+config.py
+
+# Python Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Flask-specific instance folder (contains local configs/databases)
+instance/
+
+# Local databases (e.g., SQLite)
+*.db
+*.sqlite3
 
 # Dependencies managed by a package manager
 node_modules/
@@ -12,3 +36,5 @@ node_modules/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# .vscode/settings.json not ignored to ensure code style uniformity
