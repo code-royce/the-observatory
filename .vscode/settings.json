@@ -1,0 +1,15 @@
+{
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.trimTrailingWhitespace": true,
+  "editor.insertSpaces": true,
+  "editor.tabSize": 4,
+  "editor.wordWrapColumn": 80,
+  "editor.detectIndentation": true,
+  "editor.rulers": [
+    80
+  ],
+  "[html]": {
+    "editor.tabSize": 2
+  }
+}
