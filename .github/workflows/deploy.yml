@@ -1,0 +1,64 @@
+# This workflow derived from Vite's documentation:
+# https://vite.dev/guide/static-deploy#github-pages
+
+name: Deploy frontend to Pages
+
+# Triggers the workflow only on pushing to the "main" branch
+on:
+  push:
+    branches: [ "main" ]
+
+  # Allows running this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets the GITHUB_TOKEN permissions to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  # Single build and deploy job since we're just deploying
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Runs all commands in this job from the frontend's directory
+        working-directory: ./the-observatory
+    steps:
+      # Checks out the repository under $GITHUB_WORKSPACE, so this job can access it
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          # Only the dist directory should be uploaded
+          path: './dist'
+
+      - name: Deploy to Github Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
