@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://cs411-alawini.github.io/su26-cs411-team018-theSQLInjectors/",
   "engines": {
     "node": ">=24.0.0"
   },
