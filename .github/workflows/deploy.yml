@@ -32,7 +32,7 @@ jobs:
     defaults:
       run:
         # Runs all commands in this job from the frontend's directory
-        working-directory: ./the-observatory
+        working-directory: the-observatory
     steps:
       # Checks out the repository under $GITHUB_WORKSPACE, so this job can access it
       - name: Checkout
@@ -43,6 +43,8 @@ jobs:
         with:
           node-version: lts/*
           cache: 'npm'
+          # Steps with 'uses' don't resepct the global working-directory?
+          cache-dependency-path: 'the-observatory/package-lock.json'
 
       - name: Install dependencies
         run: npm ci
@@ -57,7 +59,7 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           # Only the dist directory should be uploaded
-          path: './dist'
+          path: 'the-observatory/dist'
 
       - name: Deploy to Github Pages
         id: deployment
