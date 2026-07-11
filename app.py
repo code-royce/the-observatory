@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, request
 import mysql.connector
 from mysql.connector import Error
@@ -42,6 +41,7 @@ def index():
             except Exception:
                 pass
 
+    # Eventually, this will be replaced with returning JSON for the React app.
     return render_template('index.html', results=results, q=q, error=error)
 
 # Not sure if we're going to use this, but maybe useful if we want to keep
