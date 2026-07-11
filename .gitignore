@@ -29,12 +29,11 @@ instance/
 *.db
 *.sqlite3
 
-# Dependencies managed by a package manager
-node_modules/
-
 # OS files
 .DS_Store
 Thumbs.db
 desktop.ini
 
 # .vscode/settings.json not ignored to ensure code style uniformity
+.vscode/*
+!.vscode/settings.json
