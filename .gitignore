@@ -7,6 +7,10 @@
 .flaskenv
 config.py
 
+# Frontend connection to local Flask app. This is safe because VITE_API_URL
+# should be empty for dev.
+!the-observatory/.env.development
+
 # Python Virtual Environments
 .venv/
 venv/
