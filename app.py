@@ -1,10 +1,18 @@
-from flask import Flask, render_template, request
+import os
+from flask import Flask, jsonify, render_template, request
+from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 from markupsafe import escape
 import config
 
 app = Flask(__name__)
+
+# Allow requests from Github pages and local dev
+CORS(app, origins=[
+    "https://cs411-alawini.github.io/su26-cs411-team018-theSQLInjectors",
+    "http://localhost:5173"
+])
 
 def get_db_connection():
     """Return a new MySQL connection using values from config.py."""
@@ -16,6 +24,24 @@ def get_db_connection():
         port=config.DB_PORT,
     )
 
+@app.route('/api/test', methods=['GET'])
+def test_data():
+    '''
+    Example API route to use as a starting point.
+    When using as boilerplate:
+        1. Make sure everything after /api/ is unique.
+        2. Always return JSON. In other words, wrap data returned from MySQL
+           in a call to jsonify.
+        3. Escape user-entered values for security. e.g. escape('user input')
+    '''
+    return jsonify({"message": "Hello test data!"})
+
+if __name__ == '__main__':
+     # Cloud Run populates the PORT environment variable automatically
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
+
+# HTML route for testing queries
 @app.route('/', methods=['GET'])
 def index():
     q = escape(request.args.get('q', '').strip())

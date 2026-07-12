@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import {
-  Search, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark, Sparkles,
-  Telescope, Badge, CircleGauge, Flame, GitCommitVertical
+  Search, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
+  Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical
 } from "lucide-react";
 import type { CelestialObject, ObjectType } from "./data";
 import { CELESTIAL_OBJECTS } from "./data";
+import { TypeBadge } from "./TypeBadge";
 /**
  * Star, SS, SS?: Star
  * TS: Triple Star
@@ -69,6 +70,7 @@ export function ExploreView({
   onToggleObserved,
   isLoggedIn, onLoginRequired
 }: ExploreViewProps) {
+  // const [location, setLocation] = useState("");
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
@@ -108,6 +110,22 @@ export function ExploreView({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* TODO: finish this feature */}
+      {/* <fieldset className="fieldset">
+        <legend className="fieldset-legend">
+          Enter your location to get precise visibility results.
+        </legend>
+        <label className="label">
+          <input type="checkbox" defaultChecked className="toggle toggle-primary" />
+          <span className="text-primary">Use Current Location</span>
+        </label>
+        <label className="input flex-1">
+          <input type="text" value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Location" />
+        </label>
+      </fieldset> */}
+
       {/* Search and filter button */}
       <div className="flex gap-3 items-center">
         <label className="input flex-1">
@@ -136,7 +154,9 @@ export function ExploreView({
                 <button
                   key={t}
                   onClick={() => toggleType(t)}
-                  className={`btn btn-sm btn-outline transition-colors ${selectedTypes.has(t) ? TYPE_COLORS[t] + " border-current/30" : "text-neutral-content hover:text-white"}`}
+                  className={
+                    `btn btn-sm btn-outline transition-colors ${selectedTypes.has(t) ? TYPE_COLORS[t] + "border-current/30" : "text-neutral-content hover:text-white"}`
+                  }
                 >
                   {TYPE_ICONS[t]}
                   {t}
@@ -173,12 +193,12 @@ export function ExploreView({
               <div className="card-body">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div>
-                    <span
-                      className={`badge badge-soft badge-sm mb-1 ${TYPE_COLORS[obj.type]}`}
-                    >
-                      {TYPE_ICONS[obj.type]}
-                      {obj.type}
-                    </span>
+                    <TypeBadge
+                      color={TYPE_COLORS[obj.type]}
+                      icon={TYPE_ICONS[obj.type]}
+                      objectType={obj.type}
+                      extraClasses="badge-sm mb-1"
+                    />
                     <h2 className="card-title">{obj.name}</h2>
                     <p className="text-sm font-mono">{obj.constellation}</p>
                   </div>
@@ -228,12 +248,12 @@ export function ExploreView({
               <span aria-hidden="true">✕</span>
             </button>
           </form>
-          <span
-            className={`badge badge-soft mb-2 ${TYPE_COLORS[selectedObject?.type ?? 'Unidentified']}`}
-          >
-            {TYPE_ICONS[selectedObject?.type ?? 'Unidentified']}
-            {selectedObject?.type}
-          </span>
+          <TypeBadge
+            color={TYPE_COLORS[selectedObject?.type ?? 'Unidentified']}
+            icon={TYPE_ICONS[selectedObject?.type ?? 'Unidentified']}
+            objectType={selectedObject?.type ?? 'Unidentified'}
+            extraClasses="mb-2"
+          />
           <h3 className="mb-1 text-xl">{selectedObject?.name ?? selectedObject?.id}</h3>
           <div className="mb-4">
             Area of the sky:

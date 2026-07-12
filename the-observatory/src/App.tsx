@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StarField } from "./components/StarField";
 import { ExploreView } from "./components/ExploreView";
 
@@ -13,6 +13,18 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [observed, setObserved] = useState<Set<string>>(new Set());
+  const [message, setMessage] = useState('Loading...')
+
+  useEffect(() => {
+    // If VITE_API_URL is blank (dev), it uses relative paths.
+    // If it's populated (production), it uses the Cloud Run URL.
+    const apiBase = import.meta.env.VITE_API_URL || '';
+
+    fetch(`${apiBase}/api/test`)
+      .then(response => response.json())
+      .then(data => setMessage(data.message))
+      .catch(error => console.error('Error:', error))
+  }, [])
 
   const toggleObserved = (id: string) => {
     setObserved((prev) => {
@@ -25,6 +37,8 @@ function App() {
 
   return (
     <div className="size-full flex flex-col relative overflow-hidden">
+      {/* TODO delete usage of message below when search API is ready */}
+      <p className="sr-only">{message}</p>
       {/* Star field background */}
       <div className="absolute inset-0 pointer-events-none">
         <StarField />
