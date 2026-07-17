@@ -26,13 +26,71 @@ def get_db_connection():
 
 @app.route('/api/search', methods=['GET'])
 def search():
+    """
+    Searches CelestialObject by Name or Constellation, paginated.
+
+    Args:
+        q (str): The search query string.
+        page (int): The page number for pagination (default is 1).
+        limit (int): The number of results per page (default is 20).
+
+    Returns:
+        JSON response containing:
+            - data: List of matching celestial objects.
+            - total: Total number of matching results.
+            - page: Current page number.
+            - limit: Number of results per page.
+    """
     q = escape(request.args.get('q', '').strip())
     page = int(request.args.get('page', 1))
     limit = int(request.args.get('limit', 20))
     offset = (page - 1) * limit
 
-    # TODO finish this please.
-    return jsonify({})
+    # Base query for filtering
+    like_pattern = f"%{q}%"
+    query = """
+        SELECT *
+        FROM CelestialObject
+        WHERE Name LIKE %s
+            OR Constellation LIKE %s
+        ORDER BY Name
+        LIMIT %s
+        OFFSET %s
+    """
+
+    # Get total count to help React manage pagination
+    count_query = """
+        SELECT COUNT(*) AS total
+        FROM CelestialObject
+        WHERE Name LIKE %s
+            OR Constellation LIKE %s
+    """
+
+    # Error handling will retun JSON and 500 status code
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(query, (like_pattern, like_pattern, limit, offset))
+        results = cursor.fetchall()
+
+        cursor.execute(count_query, (like_pattern, like_pattern))
+        total = cursor.fetchone()['total']
+    except Error as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
+    return jsonify({
+        "data": results,
+        "total": total,
+        "page": page,
+        "limit": limit
+    })
 
 @app.route('/api/test', methods=['GET'])
 def test_data():
