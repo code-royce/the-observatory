@@ -25,6 +25,16 @@ export interface CelestialObject {
 
 export const CELESTIAL_OBJECTS: CelestialObject[] = [
   {
+    // invisible from most of contiguous US
+    id: "1",
+    name: "Acrux",
+    type: "Triple Star",
+    constellation: "Crux",
+    magnitude: 0.76,
+    ra: 186.6495634,
+    dec: -63.0991,
+  },
+  {
     id: "m31",
     name: "Andromeda Galaxy",
     type: "Galaxy",
@@ -106,6 +116,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 38.47,
   },
   {
+    // circumpolar from contiguous US
     id: "m81",
     name: "Bode's Galaxy",
     type: "Galaxy",
