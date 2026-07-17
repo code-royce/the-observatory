@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import {
-  Search, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
+  Search, Moon, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
   Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical
 } from "lucide-react";
 import type { CelestialObject, ObjectType } from "./data";
 import { CELESTIAL_OBJECTS } from "./data";
+// import { useGeolocation } from "./useGeolocation";
 import { TypeBadge } from "./TypeBadge";
 /**
  * Star, SS, SS?: Star
@@ -24,6 +25,18 @@ import { TypeBadge } from "./TypeBadge";
  * Kt: Knot/Nebulous region within external galaxy
  *
  */
+
+function isVisibleTonight(obj: CelestialObject): boolean {
+  // TODO convert to latitude collected from user
+  const user_lat = 40.11;
+  // do calculation for circumpolar?
+  if (user_lat + (obj.dec) > 90) {
+
+  }
+  console.log(obj)
+  // Call backend utility for stars that are seasonal?
+  return true;
+}
 
 const TYPE_COLORS: Record<ObjectType, string> = {
   Star: "text-yellow-300 bg-yellow-300/10",
@@ -74,7 +87,10 @@ export function ExploreView({
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const [visibleTonight, setVisibleTonight] = useState(true);
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(null);
+
+  // const { loaded, coordinates, error } = useGeolocation();
 
   const toggleType = (t: ObjectType) => {
     setSelectedTypes((prev) => {
@@ -96,12 +112,12 @@ export function ExploreView({
       ) {
         return false;
       }
-
+      if (visibleTonight && !isVisibleTonight(obj)) return false;
       if (selectedTypes.size > 0 && !selectedTypes.has(obj.type)) return false;
 
       return true;
     });
-  }, [search, selectedTypes]);
+  }, [search, visibleTonight, selectedTypes]);
 
   const handleToggle = (id: string) => {
     if (!isLoggedIn) { onLoginRequired(); return; }
@@ -136,6 +152,21 @@ export function ExploreView({
             onChange={(e) => setSearch(e.target.value)}
             required placeholder="Search by name or constellation" />
         </label>
+        <label
+          className={
+            `label border px-3.5 py-2 rounded-lg transition-colors${
+              visibleTonight ? " border-warning text-warning" : ""
+            }`
+          }
+        >
+          <Moon size={15} />
+          Visible tonight
+          <input
+            type="checkbox"
+            checked={visibleTonight}
+            onChange={(e) => setVisibleTonight(e.target.checked)}
+            className={`toggle${visibleTonight ? " toggle-warning" : ""}`} />
+        </label>
         <button
           onClick={() => setShowFilters((v) => !v)}
           className={`btn transition-colors${showFilters ? ' btn-warning' : ' btn-soft'}`}
@@ -155,7 +186,10 @@ export function ExploreView({
                   key={t}
                   onClick={() => toggleType(t)}
                   className={
-                    `btn btn-sm btn-outline transition-colors ${selectedTypes.has(t) ? TYPE_COLORS[t] + "border-current/30" : "text-neutral-content hover:text-white"}`
+                    `btn btn-sm btn-outline transition-colors ${
+                      selectedTypes.has(t) ?
+                        TYPE_COLORS[t] + " border-current/30" : " text-neutral-content hover:text-white"
+                    }`
                   }
                 >
                   {TYPE_ICONS[t]}
@@ -211,7 +245,7 @@ export function ExploreView({
                   </button>
                 </div>
                 <div className="flex items-center justify-between text-sm font-mono">
-                  <span>Mag {parseFloat(obj.magnitude) > 0 ? "+" : ""}{obj.magnitude}</span>
+                  <span>Mag {obj.magnitude > 0 ? "+" : ""}{obj.magnitude}</span>
                   <span>Visible tonight?</span>
                 </div>
               </div>
@@ -262,7 +296,7 @@ export function ExploreView({
           <div className="grid grid-cols-2 gap-3 mb-5">
             {[
               ["Magnitude",
-                parseFloat(selectedObject?.magnitude ?? '') > 0 ?
+                selectedObject?.magnitude ?? NaN > 0 ?
                   `+${selectedObject?.magnitude}` : `${selectedObject?.magnitude}`
               ],
               ["Right Ascension", selectedObject?.ra + "°"],
