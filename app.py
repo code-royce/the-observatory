@@ -24,6 +24,16 @@ def get_db_connection():
         port=config.DB_PORT,
     )
 
+@app.route('/api/search', methods=['GET'])
+def search():
+    q = escape(request.args.get('q', '').strip())
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 20))
+    offset = (page - 1) * limit
+
+    # TODO finish this please.
+    return jsonify({})
+
 @app.route('/api/test', methods=['GET'])
 def test_data():
     '''
@@ -52,7 +62,7 @@ def index():
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            query = ("SELECT * FROM CelestialObject WHERE Name LIKE %s LIMIT 10")
+            query = ("SELECT * FROM CelestialObject WHERE Name LIKE %s LIMIT 10 UNON SELECT * FROM CelestialObject WHERE Constellation LIKE %s LIMIT 10")
 
             # Query based on form input. Will throw error if the q param isn't
             # used in the query.
