@@ -29,12 +29,17 @@ import { TypeBadge } from "./TypeBadge";
 function isVisibleTonight(obj: CelestialObject): boolean {
   // TODO convert to latitude collected from user
   const user_lat = 40.11;
-  // do calculation for circumpolar?
-  if (user_lat + (obj.dec) > 90) {
 
+  // Stars circumpolar to the user's latitude
+  if (
+    user_lat > 0 && (user_lat + obj.dec > 90)
+    || user_lat < 0 && (user_lat + obj.dec < -90)
+  ) {
+    return true;
   }
-  console.log(obj)
-  // Call backend utility for stars that are seasonal?
+
+  // TODO: Call backend utility for stars that are seasonal?
+
   return true;
 }
 
