@@ -24,6 +24,19 @@ def get_db_connection():
         port=config.DB_PORT,
     )
 
+# TEMPLATE ROUTE GUIDANCE
+@app.route('/api/test', methods=['GET'])
+def test_data():
+    '''
+    Example API route to use as a starting point.
+    When using as boilerplate:
+        1. Make sure everything after /api/ is unique.
+        2. Always return JSON. In other words, wrap data returned from MySQL
+           in a call to jsonify.
+        3. Escape user-entered values for security. e.g. escape('user input')
+    '''
+    return jsonify({"message": "Hello test data!"})
+
 @app.route('/api/search', methods=['GET'])
 def search():
     """
@@ -92,23 +105,6 @@ def search():
         "limit": limit
     })
 
-@app.route('/api/test', methods=['GET'])
-def test_data():
-    '''
-    Example API route to use as a starting point.
-    When using as boilerplate:
-        1. Make sure everything after /api/ is unique.
-        2. Always return JSON. In other words, wrap data returned from MySQL
-           in a call to jsonify.
-        3. Escape user-entered values for security. e.g. escape('user input')
-    '''
-    return jsonify({"message": "Hello test data!"})
-
-if __name__ == '__main__':
-     # Cloud Run populates the PORT environment variable automatically
-    port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
-
 # HTML route for testing queries
 @app.route('/', methods=['GET'])
 def index():
@@ -158,3 +154,8 @@ def index():
 #     db = g.pop('db', None)
 #     if db is not None and db.is_connected():
 #         db.close()
+
+if __name__ == '__main__':
+     # Cloud Run populates the PORT environment variable automatically
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
