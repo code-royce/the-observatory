@@ -120,11 +120,23 @@ def index():
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            query = ("SELECT * FROM CelestialObject WHERE Name LIKE %s LIMIT 10 UNON SELECT * FROM CelestialObject WHERE Constellation LIKE %s LIMIT 10")
+            query = """
+                (SELECT *
+                 FROM CelestialObject
+                 WHERE Name LIKE %s
+                 LIMIT 5)
+
+                UNION
+
+                (SELECT *
+                 FROM CelestialObject
+                 WHERE Constellation LIKE %s
+                 LIMIT 5)
+            """
 
             # Query based on form input. Will throw error if the q param isn't
             # used in the query.
-            cursor.execute(query, (f"%{q}%",))
+            cursor.execute(query, (f"%{q}%", f"%{q}%"))
             results = cursor.fetchall()
         except Error as e:
             error = str(e)
