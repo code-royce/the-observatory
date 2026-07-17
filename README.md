@@ -17,6 +17,9 @@ before following the directions below.
 5. Make a copy of `config.example.py` and rename it `config.py`.
     - Add your user name and password for the database.
     - **Never** commit a file to a repository with your login credentials.
-6. Start the app: `flask run`
+6. (Optional) Verify your database connection independently of Flask: `python test_connection.py`.
+    - Prints `True` and lists every table if `config.py` and the connection to GCP are working.
+    - Useful first check if something's broken and you're not sure whether it's Flask or the database.
+7. Start the app: `flask run`
 
 If you add a new package to the project, don't forget to add it to requirements.txt: `pip freeze > requirements.txt`
