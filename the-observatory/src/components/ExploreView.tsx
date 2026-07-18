@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import {
-  Search, Moon, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
+  Search, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
   Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical
 } from "lucide-react";
 import type { CelestialObject, ObjectType } from "./data";
@@ -77,8 +77,8 @@ const ALL_TYPES: ObjectType[] = [
   "Asterism", "Knot"];
 
 interface ExploreViewProps {
-  observed: Set<string>;
-  onToggleObserved: (id: string) => void;
+  observed: Set<number>;
+  onToggleObserved: (id: number) => void;
   isLoggedIn: boolean;
   onLoginRequired: () => void;
 }
@@ -124,7 +124,7 @@ export function ExploreView({
     });
   }, [search, visibleTonight, selectedTypes]);
 
-  const handleToggle = (id: string) => {
+  const handleToggle = (id: number) => {
     if (!isLoggedIn) { onLoginRequired(); return; }
     onToggleObserved(id);
   };
@@ -148,10 +148,10 @@ export function ExploreView({
       </fieldset> */}
 
       {/* Search and filter button */}
-      <div className="flex gap-3 items-center">
+      <div className="flex flex-wrap gap-3 items-center">
         <label className="input flex-1">
           <Search size={16} />
-          <input
+          <input id="search"
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -159,12 +159,11 @@ export function ExploreView({
         </label>
         <label
           className={
-            `label border px-3.5 py-2 rounded-lg transition-colors${
+            `label btn border-neutral-content transition-colors${
               visibleTonight ? " border-warning text-warning" : ""
             }`
           }
         >
-          <Moon size={15} />
           Visible tonight
           <input
             type="checkbox"

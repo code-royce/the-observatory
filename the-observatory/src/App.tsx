@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { StarField } from "./components/StarField";
+import { AuthModal } from "./components/AuthModal";
 import { ExploreView } from "./components/ExploreView";
+import { ChevronDown, CircleUserRound, LogOut } from 'lucide-react';
 
 import './App.css'
 
@@ -12,7 +14,7 @@ interface User {
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [observed, setObserved] = useState<Set<string>>(new Set());
+  const [observed, setObserved] = useState<Set<number>>(new Set());
   const [message, setMessage] = useState('Loading...')
 
   useEffect(() => {
@@ -26,7 +28,7 @@ function App() {
       .catch(error => console.error('Error:', error))
   }, [])
 
-  const toggleObserved = (id: string) => {
+  const toggleObserved = (id: number) => {
     setObserved((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -49,22 +51,48 @@ function App() {
           }} />
       </div>
       {/* Navbar */}
-      <header className="navbar bg-base-100 shadow-sm">
+      <header className="navbar bg-base-200 shadow-sm">
         <div className="navbar-start">
           <div className="dropdown">
             <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h8m-8 6h16" /> </svg>
             </div>
+            {/* Mobile menu */}
             <ul
               tabIndex={-1}
-              className="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
+              className="menu dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
               <li><a href='#'>Explore</a></li>
               <li><a href='#'>My Log</a></li>
               <li><a href='#'>Community</a></li>
+              <li></li>
+              {user ? (
+                <>
+                  <li className="px-3 py-1.5 text-xs">Signed in as {user.name}</li>
+                  <li>
+                    <a href="#">
+                      <CircleUserRound className="size-[1.2em]" />Account
+                    </a>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => { setUser(null); setObserved(new Set()); }}
+                    >
+                      <LogOut className="size-[1.2em]" />Sign out
+                    </button>
+                  </li>
+                </>
+              ) : (
+                <li>
+                  <button onClick={() => setAuthOpen(true)}>
+                    <CircleUserRound className="size-[1.2em]" />Sign in
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
           <a href='#' className="btn btn-ghost text-xl">The Observatory</a>
         </div>
+        {/* Desktop menu */}
         <div className="navbar-center hidden lg:flex">
           <ul className="menu menu-horizontal px-1">
             <li><a href='#'>Explore</a></li>
@@ -73,7 +101,37 @@ function App() {
           </ul>
         </div>
         <div className="navbar-end">
-          <a href='#' className="btn btn-warning">Sign in</a>
+          {user ? (
+            <div className="dropdown dropdown-end hidden md:block">
+              <div tabIndex={0} role="button" className="btn btn-warning rounded-field transition-colors">
+                {user.name}<ChevronDown className="size-[1.2em]"/>
+              </div>
+              <ul
+                tabIndex={-1}
+                className="menu dropdown-content bg-base-200 rounded-box z-1 mt-4 w-52 p-2 shadow-sm"
+              >
+                <li>
+                  <a href="#">
+                    <CircleUserRound className="size-[1.2em]" />Account
+                  </a>
+                </li>
+                <li>
+                  <button
+                    onClick={() => { setUser(null); setObserved(new Set()); }}
+                  >
+                    <LogOut className="size-[1.2em]" />Sign out
+                  </button>
+                </li>
+              </ul>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAuthOpen(true)}
+              className="btn btn-warning hidden md:inline-flex"
+            >
+              Sign in
+            </button>
+          )}
         </div>
       </header>
       {/* Hero */}
@@ -96,8 +154,14 @@ function App() {
           onLoginRequired={() => setAuthOpen(true)}/>
       </main>
 
-      {/* TODO: remove this dumb thing I wrote to appease the TS build settings. */}
-      <>{user?.name ? <p className='sr-only'>{authOpen}</p> : setUser(user)}</>
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onLogin={(u) => {
+          setUser(u);
+          // made need to do other things here idk yet
+        }}
+      />
     </div>
   )
 }
