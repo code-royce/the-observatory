@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react'
 import { StarField } from "./components/StarField";
+import { Navbar } from './components/Navbar';
+import type { User } from './components/Navbar';
+import { AuthModal } from "./components/AuthModal";
 import { ExploreView } from "./components/ExploreView";
 
 import './App.css'
 
-interface User {
-  name: string;
-  email: string;
-}
-
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [observed, setObserved] = useState<Set<string>>(new Set());
+  const [observed, setObserved] = useState<Set<number>>(new Set());
   const [message, setMessage] = useState('Loading...')
 
   useEffect(() => {
@@ -26,7 +24,7 @@ function App() {
       .catch(error => console.error('Error:', error))
   }, [])
 
-  const toggleObserved = (id: string) => {
+  const toggleObserved = (id: number) => {
     setObserved((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -48,34 +46,11 @@ function App() {
             background: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(14, 20, 60, 0.6) 0%, transparent 70%)",
           }} />
       </div>
-      {/* Navbar */}
-      <header className="navbar bg-base-100 shadow-sm">
-        <div className="navbar-start">
-          <div className="dropdown">
-            <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h8m-8 6h16" /> </svg>
-            </div>
-            <ul
-              tabIndex={-1}
-              className="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
-              <li><a href='#'>Explore</a></li>
-              <li><a href='#'>My Log</a></li>
-              <li><a href='#'>Community</a></li>
-            </ul>
-          </div>
-          <a href='#' className="btn btn-ghost text-xl">The Observatory</a>
-        </div>
-        <div className="navbar-center hidden lg:flex">
-          <ul className="menu menu-horizontal px-1">
-            <li><a href='#'>Explore</a></li>
-            <li><a href='#'>My Log</a></li>
-            <li><a href='#'>Community</a></li>
-          </ul>
-        </div>
-        <div className="navbar-end">
-          <a href='#' className="btn btn-warning">Sign in</a>
-        </div>
-      </header>
+      <Navbar
+        user={user}
+        onSignIn={() => setAuthOpen(true)}
+        onSignOut={() => { setUser(null); setObserved(new Set()); }}
+      />
       {/* Hero */}
       <div className="hero min-h-80">
         <div className="hero-content text-center">
@@ -96,10 +71,16 @@ function App() {
           onLoginRequired={() => setAuthOpen(true)}/>
       </main>
 
-      {/* TODO: remove this dumb thing I wrote to appease the TS build settings. */}
-      <>{user?.name ? <p className='sr-only'>{authOpen}</p> : setUser(user)}</>
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onLogin={(u) => {
+          setUser(u);
+          // may need to do other things here idk yet
+        }}
+      />
     </div>
-  )
+  );
 }
 
 export default App

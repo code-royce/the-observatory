@@ -14,7 +14,7 @@ export type ObjectType =
 export type Constellation = string;
 
 export interface CelestialObject {
-  id: string;
+  id: number;
   name?: string;
   magnitude: number;
   type: ObjectType;
@@ -23,10 +23,11 @@ export interface CelestialObject {
   constellation: string;
 }
 
+// Mock data
 export const CELESTIAL_OBJECTS: CelestialObject[] = [
   {
     // invisible from most of contiguous US
-    id: "1",
+    id: 1,
     name: "Acrux",
     type: "Triple Star",
     constellation: "Crux",
@@ -35,7 +36,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: -63.0991,
   },
   {
-    id: "m31",
+    id: 31,
     name: "Andromeda Galaxy",
     type: "Galaxy",
     constellation: "Andromeda",
@@ -44,7 +45,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 41.266667,
   },
   {
-    id: "m42",
+    id: 42,
     name: "Orion Nebula",
     type: "Planetary Nebula",
     constellation: "Orion",
@@ -53,7 +54,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: -5.383333,
   },
   {
-    id: "m45",
+    id: 45,
     name: "Pleiades",
     type: "Open Cluster",
     constellation: "Taurus",
@@ -62,7 +63,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 24.116667,
   },
   {
-    id: "m13",
+    id: 13,
     name: "Hercules Cluster",
     type: "Globular Cluster",
     constellation: "Hercules",
@@ -71,7 +72,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 36.45,
   },
   {
-    id: "m57",
+    id: 57,
     name: "Ring Nebula",
     type: "Reflection Nebula",
     constellation: "Lyra",
@@ -80,7 +81,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 33.016667,
   },
   {
-    id: "m51",
+    id: 51,
     name: "Whirlpool Galaxy",
     type: "Galaxy",
     constellation: "Canes Venatici",
@@ -89,7 +90,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 47.183333,
   },
   {
-    id: "m1",
+    id: 2,
     name: "Crab Nebula",
     type: "Reflection Nebula",
     constellation: "Taurus",
@@ -98,7 +99,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 22,
   },
   {
-    id: "sirius",
+    id: 3,
     name: "Sirius",
     type: "Star",
     constellation: "Canis Major",
@@ -107,7 +108,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 16.7,
   },
   {
-    id: "vega",
+    id: 4,
     name: "Vega",
     type: "Star",
     constellation: "Lyra",
@@ -117,7 +118,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
   },
   {
     // circumpolar from contiguous US
-    id: "m81",
+    id: 81,
     name: "Bode's Galaxy",
     type: "Galaxy",
     constellation: "Ursa Major",
@@ -126,7 +127,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 69.03,
   },
   {
-    id: "m104",
+    id: 104,
     name: "Sombrero Galaxy",
     type: "Galaxy",
     constellation: "Virgo",
@@ -135,7 +136,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: -11.37,
   },
   {
-    id: "m27",
+    id: 27,
     name: "Dumbbell Nebula",
     type: "Planetary Nebula",
     constellation: "Vulpecula",
@@ -144,7 +145,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 22.43,
   },
   {
-    id: "albireo",
+    id: 5,
     name: "Albireo",
     type: "Double Star",
     constellation: "Cygnus",
@@ -153,7 +154,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 27.57,
   },
   {
-    id: "m8",
+    id: 8,
     name: "Lagoon Nebula",
     type: "Reflection Nebula",
     constellation: "Sagittarius",
@@ -162,7 +163,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: -24.23,
   },
   {
-    id: "m44",
+    id: 44,
     name: "Beehive Cluster",
     type: "Globular Cluster",
     constellation: "Cancer",
@@ -171,7 +172,7 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     dec: 19.59,
   },
   {
-    id: "m64",
+    id: 64,
     name: "Black Eye Galaxy",
     type: "Galaxy",
     constellation: "Coma Berenices",
