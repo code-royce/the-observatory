@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
 import {
   Search, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
-  Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical
+  Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
 import type { CelestialObject, ObjectType } from "./data";
-import { CELESTIAL_OBJECTS } from "./data";
 // import { useGeolocation } from "./useGeolocation";
 import { TypeBadge } from "./TypeBadge";
 /**
@@ -26,14 +26,25 @@ import { TypeBadge } from "./TypeBadge";
  *
  */
 
+/**
+ * Data structure for raw JSON results from /api/search.
+ * @see {@link ../../../app.py}
+ */
+export type SearchData = {
+  data: CelestialObject[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 function isVisibleTonight(obj: CelestialObject): boolean {
   // TODO convert to latitude collected from user
   const user_lat = 40.11;
 
   // Stars circumpolar to the user's latitude
   if (
-    user_lat > 0 && (user_lat + obj.dec > 90)
-    || user_lat < 0 && (user_lat + obj.dec < -90)
+    user_lat > 0 && (user_lat + obj.Declination > 90)
+    || user_lat < 0 && (user_lat + obj.Declination < -90)
   ) {
     return true;
   }
@@ -76,20 +87,41 @@ const ALL_TYPES: ObjectType[] = [
   "Reflection Nebula", "Open Cluster", "Globular Cluster", "Planetary Nebula",
   "Asterism", "Knot"];
 
+/**
+ * @param observed  CelestialObjects the user has marked as observed
+ * @param onToggleObserved  Changes the observed status of a CelestialObject for
+ *                          a logged in user; opens the login modal otherwise
+ * @param isLoggedIn  Is the user logged in
+ * @param onLoginRequired  Determines whether a user needs to be logged in to
+ *                         access a feature
+ * @param query  The name/constellation the user is searching for
+ * @param onSetQuery  Handles when query changes
+ * @param onSearch  Handles when the user has clicked the search button
+ */
 interface ExploreViewProps {
   observed: Set<number>;
   onToggleObserved: (id: number) => void;
   isLoggedIn: boolean;
   onLoginRequired: () => void;
+  query: string;
+  onSetQuery: (q: string) => void;
+  onSearch: () => void;
+  loadingResults: boolean;
+  results: SearchData | null;
 }
 
 export function ExploreView({
   observed,
   onToggleObserved,
-  isLoggedIn, onLoginRequired
+  isLoggedIn,
+  onLoginRequired,
+  query,
+  onSetQuery,
+  onSearch,
+  loadingResults,
+  results
 }: ExploreViewProps) {
   // const [location, setLocation] = useState("");
-  const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [visibleTonight, setVisibleTonight] = useState(true);
@@ -106,23 +138,19 @@ export function ExploreView({
     });
   };
 
+  // TODO: Decide how to filter all pages of results
   const filtered = useMemo(() => {
-    return CELESTIAL_OBJECTS.filter((obj) => {
-      const q = search.toLowerCase();
+    // Don't attempt to filter results when there aren't any.
+    if (results !== null && results.total > 0) {
+      return results.data.filter((obj) => {
+        if (visibleTonight && !isVisibleTonight(obj)) return false;
+        if (selectedTypes.size > 0 && !selectedTypes.has(obj.ObjectCategory)) return false;
 
-      if (
-        q &&
-        !obj.name?.toLowerCase().includes(q) &&
-        !obj.constellation.toLowerCase().includes(q)
-      ) {
-        return false;
-      }
-      if (visibleTonight && !isVisibleTonight(obj)) return false;
-      if (selectedTypes.size > 0 && !selectedTypes.has(obj.type)) return false;
-
-      return true;
-    });
-  }, [search, visibleTonight, selectedTypes]);
+        return true;
+      });
+    }
+    return [];
+  }, [results, visibleTonight, selectedTypes]);
 
   const handleToggle = (id: number) => {
     if (!isLoggedIn) { onLoginRequired(); return; }
@@ -149,18 +177,24 @@ export function ExploreView({
 
       {/* Search and filter button */}
       <div className="flex flex-wrap gap-3 items-center">
-        <label className="input flex-1">
-          <Search size={16} />
-          <input id="search"
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            required placeholder="Search by name or constellation" />
-        </label>
+        <div className="join flex-1 justify-stretch">
+          <label className="input input-warning join-item flex-1 border-warning/50">
+            <Search size={16} />
+            <input id="search"
+              type="search"
+              value={query}
+              onChange={(e) => onSetQuery(e.target.value)}
+              required placeholder="Search by name or constellation" />
+          </label>
+          <button
+            onClick={() => onSearch()}
+            disabled={loadingResults}
+            className="btn btn-warning join-item">Search</button>
+        </div>
         <label
           className={
             `label btn border-neutral-content transition-colors${
-              visibleTonight ? " border-warning text-warning" : ""
+              visibleTonight ? " border-warning/50 text-warning" : ""
             }`
           }
         >
@@ -181,7 +215,7 @@ export function ExploreView({
       </div>
       {/* Filters panel */}
       {showFilters && (
-        <div className="z-1 bg-base-100 rounded-xl border p-4 flex flex-col gap-4">
+        <div className="z-1 bg-base-100 rounded-xl border border-current/30 p-4 flex flex-col gap-4">
           <div>
             <p className="text-sm mb-2 font-mono">OBJECT TYPE</p>
             <div className="flex flex-wrap gap-2">
@@ -214,60 +248,99 @@ export function ExploreView({
       )}
 
       {/* Results count */}
-      <p className="text-sm font-mono">
-        {filtered.length} object{filtered.length !== 1 ? "s" : ""}
-      </p>
+      {results !== null && (
+        <p className="text-sm font-mono">
+          {results?.total} object{results?.total !== 1 ? "s" : ""}
+        </p>
+      )}
 
       {/* Card grid */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((obj) => {
-          const isObserved = observed.has(obj.id);
-          return (
-            <div
-              key={obj.id}
-              className="bg-base-100 card card-border transition-all cursor-pointer"
-              onClick={() => setSelectedObject(obj)}
-            >
-              <div className="card-body">
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div>
-                    <TypeBadge
-                      color={TYPE_COLORS[obj.type]}
-                      icon={TYPE_ICONS[obj.type]}
-                      objectType={obj.type}
-                      extraClasses="badge-sm mb-1"
-                    />
-                    <h2 className="card-title">{obj.name}</h2>
-                    <p className="text-sm font-mono">{obj.constellation}</p>
+      {/* When results is null (falsy), the user hasn't searched yet. */}
+      {results !== null && results.total > 0 ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {results.data.map((obj) => {
+            const isObserved = observed.has(obj.ObjectID);
+            return (
+              <div
+                key={obj.ObjectID}
+                className="bg-base-100 card card-border transition-all cursor-pointer"
+                onClick={() => setSelectedObject(obj)}
+              >
+                <div className="card-body">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                      <TypeBadge
+                        color={TYPE_COLORS[obj.ObjectCategory]}
+                        icon={TYPE_ICONS[obj.ObjectCategory]}
+                        objectType={obj.ObjectCategory}
+                        extraClasses="badge-sm mb-1"
+                      />
+                      <h2 className="card-title">{obj.Name}</h2>
+                      <p className="text-sm font-mono">{obj.Constellation}</p>
+                    </div>
+                    <button
+                      onClick={
+                        (e) => { e.stopPropagation(); handleToggle(obj.ObjectID); }
+                      }
+                      title={isObserved
+                        ? "Remove from an observation list"
+                        : "Add to an observation list"}
+                      className={`shrink-0 btn btn-square btn-soft transition-colors`}
+                    >
+                      {isObserved ? <Eye size={15} /> : <EyeOff size={15} />}
+                    </button>
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleToggle(obj.id); }}
-                    title={isObserved ? "Remove from log" : "Add to observation log"}
-                    className={`shrink-0 btn btn-square btn-soft transition-colors`}
-                  >
-                    {isObserved ? <Eye size={15} /> : <EyeOff size={15} />}
-                  </button>
-                </div>
-                <div className="flex items-center justify-between text-sm font-mono">
-                  <span>Mag {obj.magnitude > 0 ? "+" : ""}{obj.magnitude}</span>
-                  <span>Visible tonight?</span>
+                  <div className="flex items-center justify-between text-sm font-mono">
+                    <span>Mag {obj.Magnitude > 0 ? "+" : ""}{obj.Magnitude}</span>
+                    <span>Visible tonight?</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        ''
+      )}
 
-      {/* No results message */}
+      {/* No results message: when results isn't null and total is 0, the db
+        didn't return results for the user's query. */}
       {filtered.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-16 text-neutral-content">
           <Telescope size={32} className="opacity-40" />
           <p>No objects match your search.</p>
           <button
             className="btn btn-soft btn-primary"
-            onClick={() => { setSearch(""); setSelectedTypes(new Set()); }}
+            onClick={() => { onSetQuery(""); setSelectedTypes(new Set()); }}
           >
             Clear filters
+          </button>
+        </div>
+      )}
+      {/* TODO: finish the pager */}
+      {/* Display a pager when there's >1 page of results. 24 comes from the
+        page size in the search route's definition. */}
+      {results !== null && results.total > 24 && (
+        <div className="join justify-center">
+          <button onClick={() => null} className="join-item btn btn-lg">
+            <ChevronsLeft className="size-[1.2em]" />
+            <span className="sr-only">First page</span>
+          </button>
+          <button onClick={() => null} className="join-item btn btn-lg">
+            <ChevronLeft className="size-[1.2em]" />
+            <span className="sr-only">Previous page</span>
+          </button>
+          {/* page number buttons go here */}
+          <button onClick={() => null} className="join-item btn btn-lg">
+            <span className="sr-only">Page </span>1
+          </button>
+          <button onClick={() => null} className="join-item btn btn-lg">
+            <ChevronRight className="size-[1.2em]" />
+            <span className="sr-only">Next page</span>
+          </button>
+          <button onClick={() => null} className="join-item btn btn-lg">
+            <ChevronsRight className="size-[1.2em]" />
+            <span className="sr-only">Last page</span>
           </button>
         </div>
       )}
@@ -287,24 +360,24 @@ export function ExploreView({
             </button>
           </form>
           <TypeBadge
-            color={TYPE_COLORS[selectedObject?.type ?? 'Unidentified']}
-            icon={TYPE_ICONS[selectedObject?.type ?? 'Unidentified']}
-            objectType={selectedObject?.type ?? 'Unidentified'}
+            color={TYPE_COLORS[selectedObject?.ObjectCategory ?? 'Unidentified']}
+            icon={TYPE_ICONS[selectedObject?.ObjectCategory ?? 'Unidentified']}
+            objectType={selectedObject?.ObjectCategory ?? 'Unidentified'}
             extraClasses="mb-2"
           />
-          <h3 className="mb-1 text-xl">{selectedObject?.name ?? selectedObject?.id}</h3>
+          <h3 className="mb-1 text-xl">{selectedObject?.Name ?? selectedObject?.ObjectID}</h3>
           <div className="mb-4">
             Area of the sky:
-            <span className="font-mono"> {selectedObject?.constellation}</span>
+            <span className="font-mono"> {selectedObject?.Constellation}</span>
           </div>
           <div className="grid grid-cols-2 gap-3 mb-5">
             {[
               ["Magnitude",
-                selectedObject?.magnitude ?? NaN > 0 ?
-                  `+${selectedObject?.magnitude}` : `${selectedObject?.magnitude}`
+                selectedObject?.Magnitude ?? NaN > 0 ?
+                  `+${selectedObject?.Magnitude}` : `${selectedObject?.Magnitude}`
               ],
-              ["Right Ascension", selectedObject?.ra + "°"],
-              ["Declination", selectedObject?.dec + "°"],
+              ["Right Ascension", selectedObject?.RightAscension + "°"],
+              ["Declination", selectedObject?.Declination + "°"],
             ].map(([label, val]) => (
               <div key={label} className="rounded-lg bg-base-300 p-3">
                 <p className="text-sm mb-1 font-mono">{label}</p>

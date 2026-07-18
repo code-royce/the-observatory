@@ -82,6 +82,9 @@ export function AuthModal({ open, onClose, onLogin}: AuthModalProps) {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               className="input validator w-full"
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
               required
               />
           </div>
