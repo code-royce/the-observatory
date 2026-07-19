@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react';
+import { flaskFetch } from './components/api';
 import { StarField } from "./components/StarField";
 import { Navbar } from './components/Navbar';
 import type { User } from './components/Navbar';
 import { AuthModal } from "./components/AuthModal";
+import type { SearchData } from './components/ExploreView';
 import { ExploreView } from "./components/ExploreView";
 
 import './App.css'
@@ -11,18 +13,22 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [observed, setObserved] = useState<Set<number>>(new Set());
-  const [message, setMessage] = useState('Loading...')
+  const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    // If VITE_API_URL is blank (dev), it uses relative paths.
-    // If it's populated (production), it uses the Cloud Run URL.
-    const apiBase = import.meta.env.VITE_API_URL || '';
+  const [searchResults, setSearchResults] = useState<SearchData | null>(null);
+  const [loadingSearchResults, setLoadingSearchResults] = useState(false);
 
-    fetch(`${apiBase}/api/test`)
-      .then(response => response.json())
-      .then(data => setMessage(data.message))
-      .catch(error => console.error('Error:', error))
-  }, [])
+  const handleSearch = async (query?: string) => {
+    setLoadingSearchResults(true);
+    try {
+      const results = await flaskFetch<SearchData>(`/api/search?q=${query}`);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Failed to fetch search results:', error);
+    } finally {
+      setLoadingSearchResults(false);
+    }
+  };
 
   const toggleObserved = (id: number) => {
     setObserved((prev) => {
@@ -34,11 +40,9 @@ function App() {
   };
 
   return (
-    <div className="size-full flex flex-col relative overflow-hidden">
-      {/* TODO delete usage of message below when search API is ready */}
-      <p className="sr-only">{message}</p>
+    <div className="min-h-screen flex flex-col relative">
       {/* Star field background */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 -z-1 pointer-events-none">
         <StarField />
         <div
           className="absolute inset-0"
@@ -62,13 +66,17 @@ function App() {
           </div>
         </div>
       </div>
-      {/* Explore View */}
-      <main className="overflow-y-auto px-4 pb-8 pt-1 max-w-6xl mx-auto w-full">
+      <main className="px-4 pb-8 pt-1 max-w-6xl mx-auto w-full">
         <ExploreView
           observed={observed}
           onToggleObserved={toggleObserved}
           isLoggedIn={!!user}
-          onLoginRequired={() => setAuthOpen(true)}/>
+          onLoginRequired={() => setAuthOpen(true)}
+          query={searchQuery}
+          onSetQuery={(q: string) => setSearchQuery(q)}
+          onSearch={() => handleSearch(searchQuery)}
+          loadingResults={loadingSearchResults}
+          results={searchResults}/>
       </main>
 
       <AuthModal

@@ -45,7 +45,7 @@ def search():
     Args:
         q (str): The search query string.
         page (int): The page number for pagination (default is 1).
-        limit (int): The number of results per page (default is 20).
+        limit (int): The number of results per page (default is 24).
 
     Returns:
         JSON response containing:
@@ -56,7 +56,7 @@ def search():
     """
     q = escape(request.args.get('q', '').strip())
     page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 20))
+    limit = int(request.args.get('limit', 24))
     offset = (page - 1) * limit
 
     # Base query for filtering
