@@ -20,6 +20,19 @@ before following the directions below.
 6. (Optional) Verify your database connection independently of Flask: `python test_connection.py`.
     - Prints `True` and lists every table if `config.py` and the connection to GCP are working.
     - Useful first check if something's broken and you're not sure whether it's Flask or the database.
-7. Start the app: `flask run`
+7. Start the app: `python run.py`
 
 If you add a new package to the project, don't forget to add it to requirements.txt: `pip freeze > requirements.txt`
+
+## Adding a new route
+The backend is organized as Flask Blueprints under `app/routes/`, not one
+long file, so multiple people can add routes without editing the same file.
+
+1. Create (or extend) a file under `app/routes/`, defining a `Blueprint`.
+2. Register it in `app/__init__.py` via `app.register_blueprint(...)` --
+   a route is not reachable until this step, even if the file defining it
+   exists.
+3. Use `get_db_connection()` and the `handle_db_errors` decorator from
+   `app/utils.py` instead of writing your own DB connection or
+   try/except boilerplate. See `app/routes/search.py` for an example of
+   both, plus `with` blocks for automatic cursor/connection cleanup.
