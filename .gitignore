@@ -1,5 +1,8 @@
 # Files that should not be committed
 
+# Personal working notes
+*log.md
+
 # Environment variable files
 .env
 .env.*
