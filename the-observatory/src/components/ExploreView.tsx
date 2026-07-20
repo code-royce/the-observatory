@@ -7,24 +7,6 @@ import type { CelestialObject, ObjectType } from "./data";
 // import { useGeolocation } from "./useGeolocation";
 import { TypeBadge } from "./TypeBadge";
 import { Pager } from "./Pager";
-/**
- * Star, SS, SS?: Star
- * TS: Triple Star
- * DS, DS?: Double Star
- * Gx: Galaxy
- *
- * U, ?, -: Unidentified
- * ?: Uncertain type or may not exist
- * -: unidentified, but nonexistent (object called nonexistent in the RNGC)
- *
- * Nb: Reflection Nebula
- * OC, C+N: Open Star Cluster
- * Gb: Globular Cluster
- * Pl: Planetary Nebula
- * Ast: Asterism
- * Kt: Knot/Nebulous region within external galaxy
- *
- */
 
 /**
  * Data structure for raw JSON results from /api/search.

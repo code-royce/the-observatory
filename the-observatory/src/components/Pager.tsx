@@ -14,7 +14,9 @@ interface PagerProps {
 /**
  * A pager for viewing Celestial Object results on the Explore page.
  */
-export function Pager({ currentPage, numberOfPages, onSetCurrentPage }: PagerProps) {
+export function Pager({
+  currentPage, numberOfPages, onSetCurrentPage
+}: PagerProps) {
 
   return (
     <div className="flex items-center gap-2">
@@ -34,7 +36,6 @@ export function Pager({ currentPage, numberOfPages, onSetCurrentPage }: PagerPro
         <ChevronLeft className="size-[1.2em]" />
         <span className="sr-only">Previous page</span>
       </button>
-      {/* page number buttons go here */}
       <label htmlFor="page-number">
         Page
       </label>
@@ -42,6 +43,9 @@ export function Pager({ currentPage, numberOfPages, onSetCurrentPage }: PagerPro
         id="page-number"
         type="number"
         value={currentPage}
+        // TODO: fix error 'The specified value "NaN" cannot be parsed, or is
+        // out of range.' when the user backspaces in this input before
+        // entering another number.
         onChange={(e) => onSetCurrentPage(parseInt(e.target.value))}
         className="input validator"
         min="1"
