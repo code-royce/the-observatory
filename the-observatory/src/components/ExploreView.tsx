@@ -2,11 +2,11 @@ import { useState, useMemo } from "react";
 import {
   Search, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
   Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
 import type { CelestialObject, ObjectType } from "./data";
 // import { useGeolocation } from "./useGeolocation";
 import { TypeBadge } from "./TypeBadge";
+import { Pager } from "./Pager";
 /**
  * Star, SS, SS?: Star
  * TS: Triple Star
@@ -108,6 +108,8 @@ interface ExploreViewProps {
   onSearch: () => void;
   loadingResults: boolean;
   results: SearchData | null;
+  currentPage: number;
+  onSetCurrentPage: () => void;
 }
 
 export function ExploreView({
@@ -119,7 +121,9 @@ export function ExploreView({
   onSetQuery,
   onSearch,
   loadingResults,
-  results
+  results,
+  currentPage,
+  onSetCurrentPage
 }: ExploreViewProps) {
   // const [location, setLocation] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
@@ -176,8 +180,8 @@ export function ExploreView({
       </fieldset> */}
 
       {/* Search and filter button */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="join flex-1 justify-stretch">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="join grow-1">
           <label className="input input-warning join-item flex-1 border-warning/50">
             <Search size={16} />
             <input id="search"
@@ -225,8 +229,9 @@ export function ExploreView({
                   onClick={() => toggleType(t)}
                   className={
                     `btn btn-sm btn-outline transition-colors ${
-                      selectedTypes.has(t) ?
-                        TYPE_COLORS[t] + " border-current/30" : " text-neutral-content hover:text-white"
+                      selectedTypes.has(t)
+                        ? TYPE_COLORS[t] + " border-current/30"
+                        : " text-neutral-content hover:text-white"
                     }`
                   }
                 >
@@ -247,12 +252,25 @@ export function ExploreView({
         </div>
       )}
 
-      {/* Results count */}
-      {results !== null && (
-        <p className="text-sm font-mono">
-          {results?.total} object{results?.total !== 1 ? "s" : ""}
-        </p>
-      )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {/* Results count */}
+        {results !== null && (
+          <p className="text-primary font-mono">
+            {`${results?.total} object${results?.total !== 1 ? "s" : ""}`}
+          </p>
+        )}
+
+        {/* TODO: finish the pager */}
+        {/* Display a pager when there's >1 page of results. 24 comes from the
+          page size in the search route's definition. */}
+        {results !== null && results.total > 48 && (
+          <Pager
+            currentPage={currentPage}
+            numberOfPages={Math.ceil(results.total / 48)}
+            onSetCurrentPage={onSetCurrentPage}
+          />
+        )}
+      </div>
 
       {/* Card grid */}
       {/* When results is null (falsy), the user hasn't searched yet. */}
@@ -263,7 +281,7 @@ export function ExploreView({
             return (
               <div
                 key={obj.ObjectID}
-                className="bg-base-100 card card-border transition-all cursor-pointer"
+                className="bg-base-100 card card-border border-neutral transition-all cursor-pointer"
                 onClick={() => setSelectedObject(obj)}
               >
                 <div className="card-body">
@@ -314,33 +332,6 @@ export function ExploreView({
             onClick={() => { onSetQuery(""); setSelectedTypes(new Set()); }}
           >
             Clear filters
-          </button>
-        </div>
-      )}
-      {/* TODO: finish the pager */}
-      {/* Display a pager when there's >1 page of results. 24 comes from the
-        page size in the search route's definition. */}
-      {results !== null && results.total > 24 && (
-        <div className="join justify-center">
-          <button onClick={() => null} className="join-item btn btn-lg">
-            <ChevronsLeft className="size-[1.2em]" />
-            <span className="sr-only">First page</span>
-          </button>
-          <button onClick={() => null} className="join-item btn btn-lg">
-            <ChevronLeft className="size-[1.2em]" />
-            <span className="sr-only">Previous page</span>
-          </button>
-          {/* page number buttons go here */}
-          <button onClick={() => null} className="join-item btn btn-lg">
-            <span className="sr-only">Page </span>1
-          </button>
-          <button onClick={() => null} className="join-item btn btn-lg">
-            <ChevronRight className="size-[1.2em]" />
-            <span className="sr-only">Next page</span>
-          </button>
-          <button onClick={() => null} className="join-item btn btn-lg">
-            <ChevronsRight className="size-[1.2em]" />
-            <span className="sr-only">Last page</span>
           </button>
         </div>
       )}

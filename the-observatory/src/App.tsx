@@ -14,14 +14,16 @@ function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [observed, setObserved] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
-
   const [searchResults, setSearchResults] = useState<SearchData | null>(null);
   const [loadingSearchResults, setLoadingSearchResults] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const handleSearch = async (query?: string) => {
+  const handleSearch = async (query?: string, page?: number) => {
     setLoadingSearchResults(true);
     try {
-      const results = await flaskFetch<SearchData>(`/api/search?q=${query}`);
+      const results = await flaskFetch<SearchData>(
+        `/api/search?q=${query}${page ? `&page=${page}` : ''}`
+      );
       setSearchResults(results);
     } catch (error) {
       console.error('Failed to fetch search results:', error);
@@ -76,7 +78,9 @@ function App() {
           onSetQuery={(q: string) => setSearchQuery(q)}
           onSearch={() => handleSearch(searchQuery)}
           loadingResults={loadingSearchResults}
-          results={searchResults}/>
+          results={searchResults}
+          currentPage={currentPage}
+          onSetCurrentPage={() => handleSearch(searchQuery, currentPage)}/>
       </main>
 
       <AuthModal
