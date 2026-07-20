@@ -6,6 +6,7 @@ import type { User } from './components/Navbar';
 import { AuthModal } from "./components/AuthModal";
 import type { SearchData } from './components/ExploreView';
 import { ExploreView } from "./components/ExploreView";
+import type { ObjectType } from './components/data';
 
 import './App.css'
 
@@ -14,20 +15,41 @@ function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [observed, setObserved] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
-
   const [searchResults, setSearchResults] = useState<SearchData | null>(null);
   const [loadingSearchResults, setLoadingSearchResults] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
 
-  const handleSearch = async (query?: string) => {
+  const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>) => {
     setLoadingSearchResults(true);
     try {
-      const results = await flaskFetch<SearchData>(`/api/search?q=${query}`);
+      const params = new URLSearchParams();
+      params.set('q', query);
+      if (page) params.set('page', String(page));
+      types?.forEach((t) => params.append('types', t));
+
+      const results = await flaskFetch<SearchData>(`/api/search?${params.toString()}`);
       setSearchResults(results);
     } catch (error) {
       console.error('Failed to fetch search results:', error);
     } finally {
       setLoadingSearchResults(false);
     }
+  };
+
+  const toggleType = (t: ObjectType) => {
+    const next = new Set(selectedTypes);
+    if (next.has(t)) next.delete(t);
+    else next.add(t);
+    setSelectedTypes(next);
+    setCurrentPage(1);
+    handleSearch(searchQuery, undefined, next);
+  };
+
+  const clearTypes = () => {
+    setSelectedTypes(new Set());
+    setCurrentPage(1);
+    handleSearch(searchQuery, undefined, new Set());
   };
 
   const toggleObserved = (id: number) => {
@@ -74,9 +96,20 @@ function App() {
           onLoginRequired={() => setAuthOpen(true)}
           query={searchQuery}
           onSetQuery={(q: string) => setSearchQuery(q)}
-          onSearch={() => handleSearch(searchQuery)}
+          onSearch={() => {
+            setCurrentPage(1);
+            handleSearch(searchQuery, undefined, selectedTypes);
+          }}
           loadingResults={loadingSearchResults}
-          results={searchResults}/>
+          results={searchResults}
+          currentPage={currentPage}
+          onSetCurrentPage={(page: number) => {
+            setCurrentPage(page);
+            handleSearch(searchQuery, page, selectedTypes);
+          }}
+          selectedTypes={selectedTypes}
+          onToggleType={toggleType}
+          onClearTypes={clearTypes}/>
       </main>
 
       <AuthModal
