@@ -19,7 +19,7 @@ export function Pager({ currentPage, numberOfPages, onSetCurrentPage }: PagerPro
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={() => null}
+        onClick={() => onSetCurrentPage(1)}
         disabled={currentPage === 1}
         className={`${PAGER_BUTTON_CLASSES} hidden md:inline-flex`}
       >
@@ -27,7 +27,7 @@ export function Pager({ currentPage, numberOfPages, onSetCurrentPage }: PagerPro
         <span className="sr-only">First page</span>
       </button>
       <button
-        onClick={() => null}
+        onClick={() => onSetCurrentPage(currentPage - 1)}
         disabled={currentPage === 1}
         className={PAGER_BUTTON_CLASSES}
       >
@@ -50,7 +50,7 @@ export function Pager({ currentPage, numberOfPages, onSetCurrentPage }: PagerPro
       />
       <span className="text-nowrap">{`of ${numberOfPages}`}</span>
       <button
-        onClick={() => null}
+        onClick={() => onSetCurrentPage(currentPage + 1)}
         disabled={currentPage === numberOfPages}
         className={PAGER_BUTTON_CLASSES}
       >
@@ -58,7 +58,7 @@ export function Pager({ currentPage, numberOfPages, onSetCurrentPage }: PagerPro
         <span className="sr-only">Next page</span>
       </button>
       <button
-        onClick={() => null}
+        onClick={() => onSetCurrentPage(numberOfPages)}
         disabled={currentPage === numberOfPages}
         className={`${PAGER_BUTTON_CLASSES} hidden md:inline-flex`}
       >

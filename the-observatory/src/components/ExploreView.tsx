@@ -97,6 +97,9 @@ const ALL_TYPES: ObjectType[] = [
  * @param query  The name/constellation the user is searching for
  * @param onSetQuery  Handles when query changes
  * @param onSearch  Handles when the user has clicked the search button
+ * @param selectedTypes  Object categories the results are currently filtered to
+ * @param onToggleType  Toggles a single object category filter on/off
+ * @param onClearTypes  Clears all object category filters
  */
 interface ExploreViewProps {
   observed: Set<number>;
@@ -109,7 +112,10 @@ interface ExploreViewProps {
   loadingResults: boolean;
   results: SearchData | null;
   currentPage: number;
-  onSetCurrentPage: () => void;
+  onSetCurrentPage: (page: number) => void;
+  selectedTypes: Set<ObjectType>;
+  onToggleType: (t: ObjectType) => void;
+  onClearTypes: () => void;
 }
 
 export function ExploreView({
@@ -123,24 +129,17 @@ export function ExploreView({
   loadingResults,
   results,
   currentPage,
-  onSetCurrentPage
+  onSetCurrentPage,
+  selectedTypes,
+  onToggleType,
+  onClearTypes
 }: ExploreViewProps) {
   // const [location, setLocation] = useState("");
-  const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [visibleTonight, setVisibleTonight] = useState(true);
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(null);
 
   // const { loaded, coordinates, error } = useGeolocation();
-
-  const toggleType = (t: ObjectType) => {
-    setSelectedTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
-    });
-  };
 
   // TODO: Decide how to filter all pages of results
   const filtered = useMemo(() => {
@@ -148,13 +147,12 @@ export function ExploreView({
     if (results !== null && results.total > 0) {
       return results.data.filter((obj) => {
         if (visibleTonight && !isVisibleTonight(obj)) return false;
-        if (selectedTypes.size > 0 && !selectedTypes.has(obj.ObjectCategory)) return false;
 
         return true;
       });
     }
     return [];
-  }, [results, visibleTonight, selectedTypes]);
+  }, [results, visibleTonight]);
 
   const handleToggle = (id: number) => {
     if (!isLoggedIn) { onLoginRequired(); return; }
@@ -226,7 +224,7 @@ export function ExploreView({
               {ALL_TYPES.map((t) => (
                 <button
                   key={t}
-                  onClick={() => toggleType(t)}
+                  onClick={() => onToggleType(t)}
                   className={
                     `btn btn-sm btn-outline transition-colors ${
                       selectedTypes.has(t)
@@ -243,7 +241,7 @@ export function ExploreView({
           </div>
           {(selectedTypes.size > 0 || false || false) && (
             <button
-              onClick={() => { setSelectedTypes(new Set()); }}
+              onClick={onClearTypes}
               className="btn btn-link text-neutral-content hover:text-white"
             >
               Clear all filters
@@ -329,7 +327,7 @@ export function ExploreView({
           <p>No objects match your search.</p>
           <button
             className="btn btn-soft btn-primary"
-            onClick={() => { onSetQuery(""); setSelectedTypes(new Set()); }}
+            onClick={() => { onSetQuery(""); onClearTypes(); }}
           >
             Clear filters
           </button>
