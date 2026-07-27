@@ -11,5 +11,15 @@ def reports():
     """
     Returns all tuples form the CommunityReports table
     """
+    # Create a querry to get the reports to appear in the community reports
+    query_reports = f"""SELECT *
+                        FROM CommunityReport"""
 
-    return
+    # Use the above to querry the gcp database
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(query_reports)
+            reports_results = cursor.fetchall()
+
+
+    return jsonify(reports_results)
