@@ -29,9 +29,11 @@ The backend is organized as Flask Blueprints under `app/routes/`, not one
 long file, so multiple people can add routes without editing the same file.
 
 1. Create (or extend) a file under `app/routes/`, defining a `Blueprint`.
-2. Register it in `app/__init__.py` via `app.register_blueprint(...)` --
-   a route is not reachable until this step, even if the file defining it
-   exists.
+2. Register it in `app/__init__.py` via:
+    - `from app.routes.[FILE_NAME] import blueprint_name`
+    - `app.register_blueprint(blueprint_name, url_prefix='/api')`
+   A route is not reachable until it has both of these in `app/__init__.py`,
+   even if the file defining it exists.
 3. Use `get_db_connection()` and the `handle_db_errors` decorator from
    `app/utils.py` instead of writing your own DB connection or
    try/except boilerplate. See `app/routes/search.py` for an example of
