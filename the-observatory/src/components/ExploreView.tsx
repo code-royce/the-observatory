@@ -10,7 +10,7 @@ import { Pager } from "./Pager";
 
 /**
  * Data structure for raw JSON results from /api/search.
- * @see {@link ../../../app.py}
+ * @see {@link ../../../app/routes/search.py}
  */
 export type SearchData = {
   data: CelestialObject[];
@@ -116,7 +116,6 @@ export function ExploreView({
   onToggleType,
   onClearTypes
 }: ExploreViewProps) {
-  // const [location, setLocation] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [visibleTonight, setVisibleTonight] = useState(true);
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(null);
@@ -164,15 +163,11 @@ export function ExploreView({
         <div className="join grow-1">
           <label className="input input-warning join-item flex-1 border-warning/50">
             <Search size={16} />
-            <input id="search"
-              type="search"
-              value={query}
+            <input id="search" type="search" value={query}
               onChange={(e) => onSetQuery(e.target.value)}
               required placeholder="Search by name or constellation" />
           </label>
-          <button
-            onClick={() => onSearch()}
-            disabled={loadingResults}
+          <button onClick={() => onSearch()} disabled={loadingResults}
             className="btn btn-warning join-item">Search</button>
         </div>
         <label
@@ -183,14 +178,11 @@ export function ExploreView({
           }
         >
           Visible tonight
-          <input
-            type="checkbox"
-            checked={visibleTonight}
+          <input type="checkbox" checked={visibleTonight}
             onChange={(e) => setVisibleTonight(e.target.checked)}
             className={`toggle${visibleTonight ? " toggle-warning" : ""}`} />
         </label>
-        <button
-          onClick={() => setShowFilters((v) => !v)}
+        <button onClick={() => setShowFilters((v) => !v)}
           className={`btn transition-colors${showFilters ? ' btn-warning' : ' btn-soft'}`}
         >
           <SlidersHorizontal size={15} />
@@ -204,9 +196,7 @@ export function ExploreView({
             <p className="text-sm mb-2 font-mono">OBJECT TYPE</p>
             <div className="flex flex-wrap gap-2">
               {ALL_TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => onToggleType(t)}
+                <button key={t} onClick={() => onToggleType(t)}
                   className={
                     `btn btn-sm btn-outline transition-colors ${
                       selectedTypes.has(t)
@@ -222,8 +212,7 @@ export function ExploreView({
             </div>
           </div>
           {(selectedTypes.size > 0 || false || false) && (
-            <button
-              onClick={onClearTypes}
+            <button onClick={onClearTypes}
               className="btn btn-link text-neutral-content hover:text-white"
             >
               Clear all filters
@@ -232,7 +221,7 @@ export function ExploreView({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-4">
         {/* Results count */}
         {results !== null && (
           <p className="text-primary font-mono">
@@ -240,12 +229,10 @@ export function ExploreView({
           </p>
         )}
 
-        {/* TODO: finish the pager */}
         {/* Display a pager when there's >1 page of results. 24 comes from the
           page size in the search route's definition. */}
         {results !== null && results.total > 48 && (
-          <Pager
-            currentPage={currentPage}
+          <Pager currentPage={currentPage}
             numberOfPages={Math.ceil(results.total / 48)}
             onSetCurrentPage={onSetCurrentPage}
           />
@@ -259,8 +246,7 @@ export function ExploreView({
           {results.data.map((obj) => {
             const isObserved = observed.has(obj.ObjectID);
             return (
-              <div
-                key={obj.ObjectID}
+              <div key={obj.ObjectID}
                 className="bg-base-100 card card-border border-neutral transition-all cursor-pointer"
                 onClick={() => setSelectedObject(obj)}
               >
@@ -307,8 +293,7 @@ export function ExploreView({
         <div className="flex flex-col items-center gap-3 py-16 text-neutral-content">
           <Telescope size={32} className="opacity-40" />
           <p>No objects match your search.</p>
-          <button
-            className="btn btn-soft btn-primary"
+          <button className="btn btn-soft btn-primary"
             onClick={() => { onSetQuery(""); onClearTypes(); }}
           >
             Clear filters

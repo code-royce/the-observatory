@@ -22,10 +22,12 @@ def reports():
     offset = (page - 1) * limit
 
     # Query to get all community reports, with pagination
-    query_reports = f"""SELECT *
-                        FROM CommunityReport
-                        LIMIT %s
-                        OFFSET %s"""
+    query_reports = f"""
+        SELECT ReportID, UserID, Name AS UserName, Latitude, Longitude,
+               CreatedAt, ReportText
+        FROM CommunityReport NATURAL JOIN Users
+        LIMIT %s
+        OFFSET %s"""
 
     # Get total count to help React manage pagination
     count_query = f"""

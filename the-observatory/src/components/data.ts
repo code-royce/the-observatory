@@ -182,54 +182,60 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
   },
 ];
 
-export interface CommunityNote {
+export interface CommunityReport {
   ReportID: number;
-  UserID: string;
+  UserID: number;
+  UserName: string;
   Latitude: number;
   Longitude: number;
   CreatedAt: string;
   ReportText: string;
 }
 
-export const COMMUNITY_NOTES: CommunityNote[] = [
+export const COMMUNITY_REPORTS: CommunityReport[] = [
   {
     ReportID: 1,
-    UserID: "Clara Voss",
+    UserID: 1,
+    UserName: "Clara Voss",
     Latitude: 41.66384,
     Longitude: -77.82321,
-    CreatedAt: "2026-06-08",
+    CreatedAt: "Thu, 15 Jan 2026 21:30:00 GMT",
     ReportText: "Outstanding night at Cherry Springs. Milky Way was incredibly detailed — could resolve individual star clouds in Sagittarius with the naked eye. M13 was breathtaking in the 10\" dob. Light dome from Coudersport barely visible.",
   },
   {
     ReportID: 2,
-    UserID: "David Nakamura",
+    UserID: 2,
+    UserName: "David Nakamura",
     Latitude: 32.443417,
     Longitude: -110.788124,
-    CreatedAt: "2026-06-06",
+    CreatedAt: "Mon, 15 Sep 2025 22:30:00 GMT",
     ReportText: "Monsoon season approaching but still had a great session. Seeing was exceptional — planetary detail on Saturn was the best I've seen this year. Ring shadow clearly visible. Transparency dropped near midnight with some high cirrus.",
   },
   {
     ReportID: 3,
-    UserID: "Mei-Lin Zhao",
+    UserID: 3,
+    UserName: "Mei-Lin Zhao",
     Latitude: 36.27,
     Longitude: 116.51,
-    CreatedAt: "2026-06-04",
+    CreatedAt: "Fri, 05 Dec 2025 22:30:00 GMT",
     ReportText: "Bortle 1 skies as promised. Airglow was stunning — visible as a faint greenish glow on the horizon. Zodiacal light was prominent. Brought my 4\" refractor and had fantastic wide-field views of Scorpius region. M6 and M7 were spectacular.",
   },
   {
     ReportID: 4,
-    UserID: "Tom Eriksen",
+    UserID: 4,
+    UserName: "Tom Eriksen",
     Latitude: 51.1336,
     Longitude: -3.7525,
-    CreatedAt: "2026-06-03",
+    CreatedAt: "Sun, 24 Aug 2025 22:00:00 GMT",
     ReportText: "Managed two hours before clouds rolled in. Seeing was poor due to jet stream — stars were twinkling significantly. Good for deep sky but planetary detail was poor. Caught the Virgo Galaxy Cluster before clouds covered the south.",
   },
   {
     ReportID: 5,
-    UserID: "Anika Patel",
+    UserID: 5,
+    UserName: "Anika Patel",
     Latitude: 29.2500,
     Longitude: -103.2500,
-    CreatedAt: "2026-05-31",
+    CreatedAt: "Thu, 30 Oct 2025 21:30:00 GMT",
     ReportText: "New moon weekend and Big Bend delivered. No wind all night, temps stayed comfortable. Spent the session on galaxies in Virgo. M87 jet was just detectable in the 12\" at high power. Sqm reading: 21.8 mag/arcsec².",
   },
 ];
