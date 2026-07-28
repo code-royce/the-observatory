@@ -18,8 +18,8 @@ type ReportsData = {
 interface CommunityReportsProps {
   isLoggedIn: boolean;
   onLoginRequired: () => void;
-  latitude?: number;
-  longitude?: number;
+  latitude?: string | number;
+  longitude?: string | number;
   currentUserID?: number;
 }
 
@@ -65,7 +65,7 @@ export function CommunityReports({
   }, [])
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pt-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-semibold text-2xl">Community Viewing Reports</h1>
@@ -104,8 +104,8 @@ export function CommunityReports({
                   <label className="label font-mono" htmlFor="lat">
                     Latitude
                   </label>
-                  <input type="number" id="lat" name="Latitude"
-                    value={latitude}
+                  <input type="number" id="lat" name="Latitude" value={latitude}
+                    onChange={() => { /* TODO: implement */}}
                     className="input focus-visible:input-warning"/>
                 </div>
                 <div className="flex flex-col gap-2">
@@ -114,6 +114,7 @@ export function CommunityReports({
                   </label>
                   <input type="number" id="lon" name="Longitude"
                     value={longitude}
+                    onChange={() => { /* TODO: implement */ }}
                     className="input focus-visible:input-warning" />
                 </div>
               </div>
@@ -123,6 +124,7 @@ export function CommunityReports({
                 </label>
                 {/* TODO: make this value a local state var? */}
                 <textarea id="report-text" name="ReportText" value={""}
+                  onChange={() => { /* TODO: implement */ }}
                   className="textarea w-full focus-visible:textarea-warning"
                   placeholder="Describe viewing conditions, objects seen, equipment used…"/>
               </div>

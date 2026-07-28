@@ -4,7 +4,6 @@ import {
   Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical,
 } from "lucide-react";
 import type { CelestialObject, ObjectType } from "./data";
-// import { useGeolocation } from "./useGeolocation";
 import { TypeBadge } from "./TypeBadge";
 import { Pager } from "./Pager";
 
@@ -82,6 +81,8 @@ const ALL_TYPES: ObjectType[] = [
  * @param selectedTypes  Object categories the results are currently filtered to
  * @param onToggleType  Toggles a single object category filter on/off
  * @param onClearTypes  Clears all object category filters
+ * @param usingGeolocation  whether or not the user's location was received
+ *                          from the browser
  */
 interface ExploreViewProps {
   observed: Set<number>;
@@ -120,7 +121,7 @@ export function ExploreView({
   const [visibleTonight, setVisibleTonight] = useState(true);
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(null);
 
-  // const { loaded, coordinates, error } = useGeolocation();
+
 
   // TODO: Decide how to filter all pages of results
   const filtered = useMemo(() => {

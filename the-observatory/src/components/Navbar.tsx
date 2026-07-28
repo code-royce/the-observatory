@@ -1,5 +1,7 @@
 import { ChevronDown, CircleUserRound, LogOut } from 'lucide-react';
 
+export type Tab = "explore" | "lists" | "community";
+
 export type User = {
   name: string;
   email: string;
@@ -13,26 +15,35 @@ export type User = {
  */
 interface NavbarProps {
   user: User | null;
+  activeTab: Tab;
   onSignIn: () => void;
   onSignOut: () => void;
+  onSetActiveTab: (tabId: Tab) => void;
 }
 
-export function Navbar({user, onSignIn, onSignOut}: NavbarProps) {
+export function Navbar({
+  user, activeTab, onSignIn, onSignOut, onSetActiveTab
+}: NavbarProps) {
   return (
     <header className="navbar bg-base-200 shadow-sm">
       <div className="navbar-start">
         <div className="dropdown">
-          <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h8m-8 6h16" /> </svg>
-          </div>
+          <button tabIndex={0} className="btn btn-ghost lg:hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h8m-8 6h16" />
+            </svg>
+          </button>
           {/* Mobile menu */}
-          <ul
-            tabIndex={-1}
+          <ul tabIndex={-1}
             className="menu dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
-            <li><a href='#'>Explore</a></li>
-            <li><a href='#'>My Log</a></li>
-            <li><a href='#'>Community</a></li>
-            <li></li>
+            <li><button onClick={() => onSetActiveTab("explore")}>Explore</button></li>
+            <li>
+              <button
+                onClick={() => { if (!user) { onSignIn(); return; } onSetActiveTab("lists") }}
+              >My Log</button>
+            </li>
+            <li><button onClick={() => onSetActiveTab("community")}>Community</button></li>
+            <li></li> {/* keep empty - this is a spacer */}
             {user ? (
               <>
                 <li className="px-3 py-1.5 text-xs">Signed in as {user.name}</li>
@@ -56,28 +67,43 @@ export function Navbar({user, onSignIn, onSignOut}: NavbarProps) {
             )}
           </ul>
         </div>
-        <a href='#' className="btn btn-ghost text-xl">The Observatory</a>
+        <a href='/' className="btn btn-ghost text-xl">The Observatory</a>
       </div>
       {/* Desktop menu */}
       <div className="navbar-center hidden lg:flex">
         <ul className="menu menu-horizontal px-1">
-          <li><a href='#'>Explore</a></li>
-          <li><a href='#'>My Log</a></li>
-          <li><a href='#'>Community</a></li>
+          <li>
+            <button onClick={() => onSetActiveTab("explore")}
+              className={`${activeTab === 'explore' ? 'menu-active' : ''}`}
+            >
+              Explore
+            </button>
+          </li>
+          <li>
+            <button onClick={() => { if (!user) { onSignIn(); return; } onSetActiveTab("lists")}}
+              className={`${activeTab === 'lists' ? 'menu-active' : ''}`}
+            >
+              My Lists
+            </button>
+          </li>
+          <li>
+            <button onClick={() => onSetActiveTab("community")}
+              className={`${activeTab === 'community' ? 'menu-active' : ''}`}
+            >
+              Community
+            </button>
+          </li>
         </ul>
       </div>
       <div className="navbar-end">
         {user ? (
           <div className="dropdown dropdown-end hidden md:block">
-            <div
-              tabIndex={0}
-              role="button"
+            <div tabIndex={0} role="button"
               className="btn btn-warning rounded-field transition-colors"
             >
               {user.name}<ChevronDown className="size-[1.2em]" />
             </div>
-            <ul
-              tabIndex={-1}
+            <ul tabIndex={-1}
               className="menu dropdown-content bg-base-200 rounded-box z-1 mt-4 w-52 p-2 shadow-sm"
             >
               <li>
@@ -93,8 +119,7 @@ export function Navbar({user, onSignIn, onSignOut}: NavbarProps) {
             </ul>
           </div>
         ) : (
-          <button
-            onClick={() => onSignIn()}
+          <button onClick={() => onSignIn()}
             className="btn btn-warning hidden md:inline-flex"
           >
             Sign in
