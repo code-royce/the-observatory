@@ -7,7 +7,7 @@ interface GeolocationState {
     lat: number | string;
     lng: number | string;
   };
-  error: {
+  locationError: {
     code: number;
     message: string;
   } | null;
@@ -17,7 +17,7 @@ export function useGeolocation() {
   const [location, setLocation] = useState<GeolocationState>({
     loaded: false,
     coordinates: { lat: "", lng: "" },
-    error: null,
+    locationError: null,
   });
 
   const onSuccess = (position: GeolocationPosition) => {
@@ -27,7 +27,7 @@ export function useGeolocation() {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
       },
-      error: null,
+      locationError: null,
     });
   };
 
@@ -35,7 +35,7 @@ export function useGeolocation() {
     setLocation({
       loaded: true,
       coordinates: { lat: "", lng: "" },
-      error: {
+      locationError: {
         code: error.code,
         message: error.message,
       },

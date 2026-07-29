@@ -1,17 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { flaskFetch } from './components/api';
 import { StarField } from "./components/StarField";
 import { Navbar } from './components/Navbar';
-import type { User } from './components/Navbar';
+import type { Tab, User } from './components/Navbar';
 import { AuthModal } from "./components/AuthModal";
 import type { SearchData } from './components/ExploreView';
 import { ExploreView } from "./components/ExploreView";
+import { CommunityReports } from './components/CommunityReports';
 import type { ObjectType } from './components/data';
+import { useGeolocation } from "./components/useGeolocation";
 
 import './App.css'
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("explore");
+  const [user, setUser] = useState<User | null>({name: "example", email: "example@example.com"});
   const [authOpen, setAuthOpen] = useState(false);
   const [observed, setObserved] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,6 +22,19 @@ function App() {
   const [loadingSearchResults, setLoadingSearchResults] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
+
+  // TODO: maybe? without loaded, when the geoloc request finishes,
+  // error is null and coordinates are empty strings. Doesn't distinguish
+  // between waiting and "failed with no message", but not sure if problematic
+  const { coordinates, locationError } = useGeolocation();
+
+  useEffect(() => {
+    if (locationError) {
+      console.error(
+        'Geolocation error:', locationError.code, locationError.message
+      );
+    }
+  }, [locationError])
 
   const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>) => {
     setLoadingSearchResults(true);
@@ -74,11 +90,13 @@ function App() {
       </div>
       <Navbar
         user={user}
+        activeTab={activeTab}
         onSignIn={() => setAuthOpen(true)}
         onSignOut={() => { setUser(null); setObserved(new Set()); }}
+        onSetActiveTab={(tabId: Tab) => setActiveTab(tabId)}
       />
-      {/* Hero */}
-      <div className="hero min-h-80">
+      {/* Hero banner - explore only */}
+      <div className={`hero min-h-80${activeTab !== 'explore' ? ' hidden' : ''}`}>
         <div className="hero-content text-center">
           <div className="max-w-lg">
             <h1 className="text-5xl font-bold">Explore the Night Sky</h1>
@@ -88,28 +106,41 @@ function App() {
           </div>
         </div>
       </div>
+
       <main className="px-4 pb-8 pt-1 max-w-6xl mx-auto w-full">
-        <ExploreView
-          observed={observed}
-          onToggleObserved={toggleObserved}
-          isLoggedIn={!!user}
-          onLoginRequired={() => setAuthOpen(true)}
-          query={searchQuery}
-          onSetQuery={(q: string) => setSearchQuery(q)}
-          onSearch={() => {
-            setCurrentPage(1);
-            handleSearch(searchQuery, undefined, selectedTypes);
-          }}
-          loadingResults={loadingSearchResults}
-          results={searchResults}
-          currentPage={currentPage}
-          onSetCurrentPage={(page: number) => {
-            setCurrentPage(page);
-            handleSearch(searchQuery, page, selectedTypes);
-          }}
-          selectedTypes={selectedTypes}
-          onToggleType={toggleType}
-          onClearTypes={clearTypes}/>
+        <div className={`${activeTab !== 'explore' ? 'hidden' : ''}`}>
+          <ExploreView
+            observed={observed}
+            onToggleObserved={toggleObserved}
+            isLoggedIn={!!user}
+            onLoginRequired={() => setAuthOpen(true)}
+            query={searchQuery}
+            onSetQuery={(q: string) => setSearchQuery(q)}
+            onSearch={() => {
+              setCurrentPage(1);
+              handleSearch(searchQuery, undefined, selectedTypes);
+            }}
+            loadingResults={loadingSearchResults}
+            results={searchResults}
+            currentPage={currentPage}
+            onSetCurrentPage={(page: number) => {
+              setCurrentPage(page);
+              handleSearch(searchQuery, page, selectedTypes);
+            }}
+            selectedTypes={selectedTypes}
+            onToggleType={toggleType}
+            onClearTypes={clearTypes} />
+        </div>
+        <div className={`${activeTab !== 'community' ? 'hidden' : ''}`}>
+          <CommunityReports
+            isLoggedIn={!!user}
+            onLoginRequired={() => setAuthOpen(true)}
+            latitude={coordinates.lat}
+            longitude={coordinates.lng}
+            // TODO: need to get and pass currently logged in user's ID
+            currentUserID={0}
+          />
+        </div>
       </main>
 
       <AuthModal
