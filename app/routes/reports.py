@@ -26,6 +26,7 @@ def reports():
         SELECT ReportID, UserID, Name AS UserName, Latitude, Longitude,
                CreatedAt, ReportText
         FROM CommunityReport NATURAL JOIN Users
+        ORDER BY CreatedAt DESC
         LIMIT %s
         OFFSET %s"""
 
@@ -49,3 +50,82 @@ def reports():
         "page": page,
         "limit": limit
     })
+
+@reports_bp.route('/reports', methods=['POST'])
+@handle_db_errors
+def create_report():
+    """
+    Creates a new CommunityReport.
+
+    Expects a JSON body containing:
+        - user_id: int (FK to Users), required for new reports
+        - latitude: float, required
+        - longitude: float, required
+        - report_text: str, required
+
+    Returns:
+        JSON response containing the newly created report as a dictionary.
+    """
+    body = request.get_json(silent=True) or {}
+
+    user_id = body.get('user_id')
+    latitude = body.get('latitude')
+    longitude = body.get('longitude')
+    report_text = body.get('report_text')
+
+    # Basic validation
+    errors = []
+    if user_id is None:
+        errors.append("user_id is required.")
+    if latitude is None:
+        errors.append("latitude is required")
+    if longitude is None:
+        errors.append("longitude is required")
+    if not report_text or not str(report_text).strip():
+        errors.append("report_text is required")
+
+    # Type validation
+    if latitude is not None:
+        try:
+            latitude = float(latitude)
+        except (TypeError, ValueError):
+            errors.append("latitude must be a number")
+    if longitude is not None:
+        try:
+            longitude = float(longitude)
+        except (TypeError, ValueError):
+            errors.append("longitude must be a number")
+    if user_id is not None:
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            errors.append("user_id must be an integer")
+
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    insert_query = """
+        INSERT INTO CommunityReport (UserID, Latitude, Longitude, ReportText)
+        VALUES (%s, %s, %s, %s)"""
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(
+                insert_query,
+                (user_id, latitude, longitude, report_text)
+            )
+            new_id = cursor.lastrowid
+            conn.commit()
+
+            cursor.execute(
+                """
+                SELECT ReportID, UserID, Name AS UserName, Latitude, Longitude,
+                       CreatedAt, ReportText
+                FROM CommunityReport NATURAL JOIN Users
+                WHERE ReportID = %s
+                """,
+                (new_id,)
+            )
+            new_report = cursor.fetchone()
+
+    return jsonify({"data": new_report}), 201

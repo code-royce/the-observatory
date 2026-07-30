@@ -13,7 +13,10 @@ export async function flaskFetch<T>(endpoint: string, options?: RequestInit): Pr
   });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    // Return info about 400 errors with specific validation messages.
+    const body = await response.json().catch(() => null);
+    const message = body?.errors?.join(', ') || body?.error || response.statusText;
+    throw new Error(message);
   }
 
   return response.json() as Promise<T>;
