@@ -20,9 +20,9 @@ ORDER BY ... LIMIT, not by a join condition), joined to SavedObject and
 CelestialObject and aggregated with GROUP BY.
 
 Runs as the second of two queries inside the read transaction in
-app/routes/lists.py -> list_detail(), at REPEATABLE READ. Both queries count
-rows in SavedObject, so they must see the same snapshot or their totals
-disagree.
+app/routes/lists.py -> list_detail(), at REPEATABLE READ, so its counts
+describe the same snapshot as the metadata query and the separately computed
+row total shown beside them.
 
 The altitude expression is the SQL translation of
 app/horizon_calculator.altitude(); the same translation appears in

@@ -141,17 +141,12 @@ def list_detail(list_id):
         WHERE ListID = %s"""
 
     with get_db_connection() as conn:
-        # Four of the reads below count rows in SavedObject, and their answers
-        # have to describe one moment: if a concurrent request added an object
-        # partway through, `total` would stop agreeing with what `summary` and
-        # `visibility` add up to, and the page would render numbers that
-        # contradict each other. REPEATABLE READ pins a single snapshot for
-        # every statement in the block.
-        #
-        # get_db_connection() already returns a connection with autocommit
-        # off, so this route was relying on that guarantee implicitly.
-        # Declaring it makes the isolation level deliberate and reviewable
-        # instead of inherited from the connector's defaults.
+        # `total`, `summary`, and `visibility` come from separate queries and
+        # can't be derived from one another -- LIST_METADATA_QUERY's HAVING
+        # clause drops fully-observed categories, so its counts deliberately
+        # don't sum to `total`. The response hands all three back as though
+        # they describe one list, and REPEATABLE READ is what makes that true
+        # by construction: every statement here reads the same snapshot.
         conn.start_transaction(isolation_level='REPEATABLE READ')
 
         with conn.cursor(dictionary=True) as cursor:
@@ -410,3 +405,89 @@ def update_list(list_id):
             updated_list = cursor.fetchone()
 
     return jsonify({"data": updated_list})
+
+
+@lists_bp.route('/lists/<int:list_id>/objects', methods=['POST'])
+@handle_db_errors
+def add_objects(list_id):
+    """
+    Saves one or more CelestialObjects to an ObservationList.
+
+    Takes a list of IDs so that adding several objects costs one request
+    rather than one per object. Which objects end up in that list is the
+    frontend's decision -- they might come from one search, several
+    searches, or individual clicks. Adding a single object means sending a
+    one-element list.
+
+    Args:
+        list_id (int): The ObservationList.ListID to add to, from the URL.
+
+    Expects a JSON body containing:
+        - object_ids: list[int] (FKs to CelestialObject), required.
+        - observed_status: str, optional. "seen" or "not seen"; defaults to
+          "not seen".
+
+    Returns:
+        JSON response reporting how many rows were added and how many were
+        already on the list, with a 201 status code. A 400 if the body is
+        invalid or an ObjectID matches no celestial object, or a 404 if no
+        list has that ListID.
+    """
+    body = request.get_json(silent=True) or {}
+
+    object_ids = body.get('object_ids')
+    observed_status = body.get('observed_status', 'not seen')
+
+    errors = []
+    if not isinstance(object_ids, list) or not object_ids:
+        errors.append("object_ids is required and must be a non-empty list")
+        object_ids = []
+
+    clean_ids = []
+    for object_id in object_ids:
+        try:
+            clean_ids.append(int(object_id))
+        except (TypeError, ValueError):
+            errors.append(f"object_ids must all be integers; got {object_id!r}")
+
+    observed_status = str(observed_status).strip().lower()
+    if observed_status not in ('seen', 'not seen'):
+        errors.append("observed_status must be 'seen' or 'not seen'")
+
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    # One multi-row INSERT rather than one statement per object.
+    placeholders = ", ".join(["(%s, %s, %s)"] * len(clean_ids))
+    values = []
+    for object_id in clean_ids:
+        values.extend([list_id, object_id, observed_status])
+
+    # SavedObject's primary key is (ListID, ObjectID), so re-adding an object
+    # is a duplicate-key error. Re-adding is ordinary user behavior though.
+    insert_query = f"""
+        INSERT INTO SavedObject (ListID, ObjectID, ObservedStatus)
+        VALUES {placeholders}
+        ON DUPLICATE KEY UPDATE ObjectID = ObjectID
+        """
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(LIST_COLUMNS, (list_id,))
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Observation list not found"}), 404
+
+            cursor.execute(insert_query, values)
+
+            # With ON DUPLICATE KEY UPDATE, MySQL counts 1 for each row it
+            # inserts and 0 for each row whose no-op update changed nothing,
+            # so rowcount is exactly the number of genuinely new rows.
+            added = cursor.rowcount
+            conn.commit()
+
+    return jsonify({"data": {
+        "list_id": list_id,
+        "requested": len(clean_ids),
+        "added": added,
+        "skipped": len(clean_ids) - added,
+    }}), 201
