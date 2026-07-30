@@ -1,0 +1,77 @@
+/*
+ListVisibilityByCategory.sql
+
+Purpose:
+  For one ObservationList saved at a known location, reports three counts per
+  object category: how many objects are on the list, how many of those are
+  bright enough to see through the local light pollution at all, and how many
+  of those are also above the horizon right now. Pairs with
+  ListMetadataByCategory.sql to answer "of what I still want to see, what can
+  I actually see tonight from here?"
+
+  Every object on the list is counted, and the light pollution and horizon
+  tests narrow the later columns rather than filtering rows out. Putting
+  either test in the WHERE clause instead would make OnList report the
+  surviving rows rather than the list's real size.
+
+Advanced query: a CTE containing a subquery that cannot be rewritten as a
+join (the nearest-observations lookup selects rows by proximity rank via
+ORDER BY ... LIMIT, not by a join condition), joined to SavedObject and
+CelestialObject and aggregated with GROUP BY.
+
+Runs as the second of two queries inside the read transaction in
+app/routes/lists.py -> list_detail(), at REPEATABLE READ. Both queries count
+rows in SavedObject, so they must see the same snapshot or their totals
+disagree.
+
+The altitude expression is the SQL translation of
+app/horizon_calculator.altitude(); the same translation appears in
+app/routes/visibility.py. The LocalLimit CTE is the nearest-three-
+observations pattern from Query 1 in doc/Database Design.pdf, which falls
+back to a suburban/rural limiting magnitude of 6 when no observation is on
+file nearby.
+
+Parameters:
+  list_id  -- ObservationList.ListID to report on
+  lat      -- the list's Latitude, degrees
+  lon      -- the list's Longitude, degrees east-positive
+  lst      -- local sidereal time, degrees (computed in Python)
+  min_alt  -- minimum altitude to count as visible, degrees
+*/
+
+WITH LocalLimit AS (
+    -- Faintest magnitude visible here, averaged over the three nearest
+    -- light pollution observations within roughly 10 miles.
+    SELECT COALESCE(AVG(LimitingMag), 6) AS LimitingMag
+    FROM (
+        SELECT LimitingMag
+        FROM LightPollutionObservation
+        -- 10 land miles = (approx) 0.1448 degrees latitude shift
+        WHERE Latitude BETWEEN %(lat)s - 0.1448 AND %(lat)s + 0.1448
+            -- longitude shift scaled by latitude for Earth's curvature
+            AND Longitude BETWEEN
+                %(lon)s - 10 / 69.17 * COS(RADIANS(%(lat)s))
+                AND %(lon)s + 10 / 69.17 * COS(RADIANS(%(lat)s))
+        ORDER BY ABS(%(lat)s - Latitude), ABS(%(lon)s - Longitude)
+        LIMIT 3
+    ) AS ThreeClosest
+)
+SELECT c.ObjectCategory,
+       COUNT(*) AS OnList,
+       SUM(c.Magnitude <= l.LimitingMag) AS Observable,
+       SUM(
+           c.Magnitude <= l.LimitingMag
+           AND DEGREES(ASIN(
+               SIN(RADIANS(c.Declination)) * SIN(RADIANS(%(lat)s))
+               + COS(RADIANS(c.Declination)) * COS(RADIANS(%(lat)s))
+                   * COS(RADIANS(%(lst)s - c.RightAscension * 15))
+           )) > %(min_alt)s
+       ) AS UpNow
+FROM SavedObject s
+    JOIN CelestialObject c ON c.ObjectID = s.ObjectID
+    -- Single-row CTE, so this attaches the local limiting magnitude to every
+    -- row without changing the row count.
+    CROSS JOIN LocalLimit l
+WHERE s.ListID = %(list_id)s
+GROUP BY c.ObjectCategory
+ORDER BY UpNow DESC, OnList DESC;

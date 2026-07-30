@@ -1,7 +1,412 @@
-from flask import Blueprint
+from datetime import datetime, timezone
+from pathlib import Path
 
-# Registered under /api/lists in app/__init__.py. Intended to eventually
-# hold a route like /api/lists/<user_id> that returns all of a user's
-# Observation Lists, for the "My Log" page. No routes yet -- stub for
-# whoever picks up that work.
+from flask import Blueprint, jsonify, request
+from mysql.connector import IntegrityError, errorcode
+
+from app.horizon_calculator import julian_date, local_sidereal_time
+from app.utils import get_db_connection, handle_db_errors
+
 lists_bp = Blueprint('lists', __name__)
+
+# app/routes/lists.py -> app/routes -> app -> repo root
+SQL_DIR = Path(__file__).resolve().parents[2] / 'sql' / 'transactions'
+
+
+def _load_sql(filename):
+    """
+    Reads one query out of sql/transactions/.
+
+    The advanced queries live in .sql files rather than inline strings so
+    they are reviewable next to the project's other SQL, and so a grader or
+    teammate can find them without reading Python. The transaction itself
+    can't move there -- START TRANSACTION/COMMIT are runtime statements the
+    connector has to issue and roll back, not database objects like the
+    procedures and triggers in the sibling folders.
+
+    Args:
+        filename (str): File name inside sql/transactions/.
+
+    Returns:
+        str: The file's contents, minus the trailing semicolon, so the same
+            file can be pasted straight into a mysql client and also handed
+            to cursor.execute().
+    """
+    return (SQL_DIR / filename).read_text(encoding='utf-8').rstrip().rstrip(';')
+
+
+# Read once at import rather than per request. Both queries take named
+# parameters (%(list_id)s), so cursor.execute() is passed a dict, not a tuple.
+LIST_METADATA_QUERY = _load_sql('ListMetadataByCategory.sql')
+LIST_VISIBILITY_QUERY = _load_sql('ListVisibilityByCategory.sql')
+
+# Every route that hands a list back to the caller selects the same columns.
+LIST_COLUMNS = """
+    SELECT ListID, UserID, ListName, Latitude, Longitude, CreatedAt
+    FROM ObservationList
+    WHERE ListID = %s"""
+
+
+@lists_bp.route('/users/<int:user_id>/lists', methods=['GET'])
+@handle_db_errors
+def user_lists(user_id):
+    """
+    Returns every ObservationList belonging to one user, newest first.
+
+    Args:
+        user_id (int): The Users.UserID whose lists to fetch, from the URL.
+
+    Returns:
+        JSON response containing:
+            - data: list of the user's ObservationLists as dictionaries,
+              each with an added ObjectCount.
+            - total: number of lists returned.
+    """
+    # LEFT JOIN, not an inner join: a list with no saved objects still has to
+    # come back. The CreateDefaultObservationList trigger gives every new user
+    # an empty list, so that is the common case, not an edge case.
+    query = """
+        SELECT ol.ListID, ol.UserID, ol.ListName, ol.Latitude, ol.Longitude,
+               ol.CreatedAt, COUNT(s.ObjectID) AS ObjectCount
+        FROM ObservationList ol
+            LEFT JOIN SavedObject s ON s.ListID = ol.ListID
+        WHERE ol.UserID = %s
+        GROUP BY ol.ListID, ol.UserID, ol.ListName, ol.Latitude, ol.Longitude,
+                 ol.CreatedAt
+        ORDER BY ol.CreatedAt DESC, ol.ListID DESC
+        """
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(query, (user_id,))
+            results = cursor.fetchall()
+
+    return jsonify({
+        "data": results,
+        "total": len(results)
+    })
+
+
+@lists_bp.route('/lists/<int:list_id>', methods=['GET'])
+@handle_db_errors
+def list_detail(list_id):
+    """
+    Returns one ObservationList, its per-category progress summary, and a
+    page of the objects saved to it.
+
+    Args:
+        list_id (int): The ObservationList.ListID to fetch, from the URL.
+        page (int): The page number for the saved objects (default is 1).
+        limit (int): Saved objects per page (default is 48).
+
+    Returns:
+        JSON response containing:
+            - data: the ObservationList row as a dictionary.
+            - summary: per-ObjectCategory progress rows, covering the whole
+              list, not just this page.
+            - visibility: per-ObjectCategory counts, judged from the list's
+              own coordinates: OnList (saved to this list), Observable
+              (bright enough to beat the local light pollution), and UpNow
+              (observable and above the horizon right now). Empty when the
+              list has no coordinates saved, since visibility is meaningless
+              without a location.
+            - objects: this page of saved objects, each joined to its
+              CelestialObject row and carrying ObservedStatus and AddedAt.
+            - total: total number of objects saved to the list.
+            - page, limit: the pagination that was applied.
+        A 404 if no list has that ListID.
+    """
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 48))
+    offset = (page - 1) * limit
+
+    # ListID 2 in the seed data holds ~132k saved objects, so this page is
+    # always paginated the same way /api/search is -- never fetched whole.
+    # Unnamed NGC/IC rows sort to the end rather than being dropped, and
+    # ObjectID breaks ties so LIMIT/OFFSET can't skip or repeat a row.
+    objects_query = """
+        SELECT c.ObjectID, c.Name, c.Magnitude, c.ObjectCategory,
+               c.RightAscension, c.Declination, c.Constellation,
+               s.ObservedStatus, s.AddedAt
+        FROM SavedObject s
+            JOIN CelestialObject c ON c.ObjectID = s.ObjectID
+        WHERE s.ListID = %s
+        ORDER BY (c.Name IS NULL), c.Name, c.ObjectID
+        LIMIT %s
+        OFFSET %s"""
+
+    count_query = """
+        SELECT COUNT(*) AS total
+        FROM SavedObject
+        WHERE ListID = %s"""
+
+    with get_db_connection() as conn:
+        # Four of the reads below count rows in SavedObject, and their answers
+        # have to describe one moment: if a concurrent request added an object
+        # partway through, `total` would stop agreeing with what `summary` and
+        # `visibility` add up to, and the page would render numbers that
+        # contradict each other. REPEATABLE READ pins a single snapshot for
+        # every statement in the block.
+        #
+        # get_db_connection() already returns a connection with autocommit
+        # off, so this route was relying on that guarantee implicitly.
+        # Declaring it makes the isolation level deliberate and reviewable
+        # instead of inherited from the connector's defaults.
+        conn.start_transaction(isolation_level='REPEATABLE READ')
+
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(LIST_COLUMNS, (list_id,))
+            observation_list = cursor.fetchone()
+
+            if observation_list is None:
+                # Nothing was written, and closing the connection discards the
+                # open snapshot, so there is nothing to roll back.
+                return jsonify({"error": "Observation list not found"}), 404
+
+            cursor.execute(LIST_METADATA_QUERY, {"list_id": list_id})
+            summary = cursor.fetchall()
+
+            # COUNT() arrives as an int, but SUM() and ROUND() arrive as
+            # Decimal, which Flask serializes as a JSON string ("90", not 90).
+            # Convert so every number in the summary is actually a number to
+            # the frontend. A category whose rows all have a NULL
+            # ObservedStatus sums to NULL, hence the `or 0`.
+            for row in summary:
+                row['Observed'] = int(row['Observed'] or 0)
+                row['CompletionRate'] = int(row['CompletionRate'] or 0)
+
+            visibility = []
+            latitude = observation_list['Latitude']
+            longitude = observation_list['Longitude']
+
+            # A list with no coordinates can't be checked against a horizon,
+            # so the second query is skipped rather than fed a fake location.
+            if latitude is not None and longitude is not None:
+                now = datetime.now(timezone.utc)
+                cursor.execute(LIST_VISIBILITY_QUERY, {
+                    "list_id": list_id,
+                    "lat": latitude,
+                    "lon": longitude,
+                    "lst": local_sidereal_time(julian_date(now), longitude),
+                    "min_alt": 20,  # clears trees, buildings, refraction
+                })
+                visibility = cursor.fetchall()
+
+                # Same Decimal-to-int conversion the summary needs: COUNT()
+                # returns an int but SUM() returns a Decimal.
+                for row in visibility:
+                    row['Observable'] = int(row['Observable'] or 0)
+                    row['UpNow'] = int(row['UpNow'] or 0)
+
+            cursor.execute(objects_query, (list_id, limit, offset))
+            objects = cursor.fetchall()
+
+            cursor.execute(count_query, (list_id,))
+            total = cursor.fetchone()['total']
+
+        # Read-only, so there is nothing to persist -- but the snapshot stays
+        # open until the transaction ends, and __exit__ on the connection only
+        # calls close(). Committing releases it explicitly.
+        conn.commit()
+
+    return jsonify({
+        "data": observation_list,
+        "summary": summary,
+        "visibility": visibility,
+        "objects": objects,
+        "total": total,
+        "page": page,
+        "limit": limit
+    })
+
+
+@lists_bp.route('/lists', methods=['POST'])
+@handle_db_errors
+def create_list():
+    """
+    Creates a new, empty ObservationList. Objects get added afterwards from
+    the search results page, so nothing is inserted into SavedObject here.
+
+    Expects a JSON body containing:
+        - user_id: int (FK to Users), required
+        - list_name: str, required
+        - latitude: float, optional
+        - longitude: float, optional
+
+    Returns:
+        JSON response containing the newly created list as a dictionary,
+        with a 201 status code. A 400 if the body is invalid or user_id
+        matches no user, or a 409 if that user already has a list by that
+        name.
+    """
+    body = request.get_json(silent=True) or {}
+
+    user_id = body.get('user_id')
+    list_name = body.get('list_name')
+    latitude = body.get('latitude')
+    longitude = body.get('longitude')
+
+    errors = []
+    if user_id is None:
+        errors.append("user_id is required")
+    else:
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            errors.append("user_id must be an integer")
+
+    if not list_name or not str(list_name).strip():
+        errors.append("list_name is required")
+
+    # Latitude and Longitude are both nullable on ObservationList, so a list
+    # with no location is valid -- only convert them when actually supplied.
+    # Their ranges are already enforced by the CHECK constraints in
+    # sql/constraints/ObservationListCoordinateConstraints.sql.
+    if latitude is not None:
+        try:
+            latitude = float(latitude)
+        except (TypeError, ValueError):
+            errors.append("latitude must be a number")
+    if longitude is not None:
+        try:
+            longitude = float(longitude)
+        except (TypeError, ValueError):
+            errors.append("longitude must be a number")
+
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    insert_query = """
+        INSERT INTO ObservationList (UserID, Latitude, Longitude, ListName)
+        VALUES (%s, %s, %s, %s)
+        """
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            # @handle_db_errors turns any mysql.connector.Error into a 500,
+            # which is right for a genuinely broken query but wrong for these
+            # two: both are ordinary user mistakes the frontend should be able
+            # to show. Caught here rather than in app/utils.py because that
+            # decorator is shared with everyone else's routes.
+            try:
+                cursor.execute(
+                    insert_query, (user_id, latitude, longitude, list_name)
+                )
+            except IntegrityError as e:
+                if e.errno == errorcode.ER_DUP_ENTRY:
+                    return jsonify({"errors": [
+                        f"This user already has a list named '{list_name}'."
+                    ]}), 409
+                if e.errno == errorcode.ER_NO_REFERENCED_ROW_2:
+                    return jsonify({"errors": [
+                        f"No user exists with user_id {user_id}."
+                    ]}), 400
+                raise
+
+            new_id = cursor.lastrowid
+            conn.commit()
+
+            # Read the row back rather than echoing the request: CreatedAt is
+            # database-generated, and the TrimObservationListName trigger may
+            # have rewritten ListName on the way in.
+            cursor.execute(LIST_COLUMNS, (new_id,))
+            new_list = cursor.fetchone()
+
+    return jsonify({"data": new_list}), 201
+
+
+@lists_bp.route('/lists/<int:list_id>', methods=['PATCH'])
+@handle_db_errors
+def update_list(list_id):
+    """
+    Updates an existing ObservationList. Any field left out of the body is
+    left unchanged, so the frontend can rename a list without resending its
+    coordinates.
+
+    Args:
+        list_id (int): The ObservationList.ListID to update, from the URL.
+
+    Expects a JSON body containing any of:
+        - list_name: str
+        - latitude: float
+        - longitude: float
+
+    Returns:
+        JSON response containing the updated list as a dictionary. A 400 if
+        the body is invalid or empty, a 404 if no list has that ListID, or a
+        409 if the new name collides with another of that user's lists.
+    """
+    body = request.get_json(silent=True) or {}
+
+    errors = []
+
+    # Build the SET clause from whichever fields were sent, so renaming a list
+    # doesn't mean resending its coordinates. The column names are string
+    # literals written here, never anything from the request body, so this
+    # stays safe -- only the values are parameterized.
+    assignments = []
+    values = []
+    list_name = body.get('list_name')
+
+    if 'list_name' in body:
+        if list_name and str(list_name).strip():
+            assignments.append("ListName = %s")
+            values.append(list_name)
+        else:
+            errors.append("list_name cannot be empty")
+
+    if 'latitude' in body:
+        try:
+            latitude = float(body['latitude'])
+            assignments.append("Latitude = %s")
+            values.append(latitude)
+        except (TypeError, ValueError):
+            errors.append("latitude must be a number")
+
+    if 'longitude' in body:
+        try:
+            longitude = float(body['longitude'])
+            assignments.append("Longitude = %s")
+            values.append(longitude)
+        except (TypeError, ValueError):
+            errors.append("longitude must be a number")
+
+    # Only complain about an empty body when nothing else went wrong --
+    # otherwise a single bad latitude reports two confusing errors at once.
+    if not assignments and not errors:
+        errors.append(
+            "Provide at least one of list_name, latitude, or longitude."
+        )
+
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    update_query = f"""
+        UPDATE ObservationList
+        SET {", ".join(assignments)}
+        WHERE ListID = %s"""
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            # Check existence first. A bare UPDATE can't tell "no such list"
+            # apart from "the values sent matched what was already there",
+            # since both report zero affected rows.
+            cursor.execute(LIST_COLUMNS, (list_id,))
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Observation list not found"}), 404
+
+            try:
+                cursor.execute(update_query, (*values, list_id))
+            except IntegrityError as e:
+                if e.errno == errorcode.ER_DUP_ENTRY:
+                    return jsonify({"errors": [
+                        f"This user already has a list named '{list_name}'."
+                    ]}), 409
+                raise
+
+            conn.commit()
+
+            cursor.execute(LIST_COLUMNS, (list_id,))
+            updated_list = cursor.fetchone()
+
+    return jsonify({"data": updated_list})
