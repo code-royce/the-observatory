@@ -137,7 +137,12 @@ function App() {
             onLoginRequired={() => setAuthOpen(true)}
             latitude={coordinates.lat}
             longitude={coordinates.lng}
+            onSetLatitude={(lat: number) => { coordinates.lat = lat; }}
+            onSetLongitude={(lon: number) => { coordinates.lng = lon; }}
             // TODO: need to get and pass currently logged in user's ID
+            // Attempting to submit a report when this value is zero will fail.
+            // Otherwise, this will successfully submit new community reports
+            // with valid user IDs
             currentUserID={0}
           />
         </div>
@@ -148,7 +153,7 @@ function App() {
         onClose={() => setAuthOpen(false)}
         onLogin={(u) => {
           setUser(u);
-          // may need to do other things here idk yet
+          // TODO: may need to do other things here idk yet
         }}
       />
     </div>
