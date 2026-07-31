@@ -14,7 +14,7 @@ import './App.css'
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>("explore");
-  const [user, setUser] = useState<User | null>({name: "example", email: "example@example.com"});
+  const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [observed, setObserved] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
