@@ -74,7 +74,7 @@ def user_lists(user_id):
         GROUP BY ol.ListID, ol.UserID, ol.ListName, ol.Latitude, ol.Longitude,
                  ol.CreatedAt
         ORDER BY ol.CreatedAt DESC, ol.ListID DESC
-        """
+    """
 
     with get_db_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
@@ -133,12 +133,14 @@ def list_detail(list_id):
         WHERE s.ListID = %s
         ORDER BY (c.Name IS NULL), c.Name, c.ObjectID
         LIMIT %s
-        OFFSET %s"""
+        OFFSET %s
+    """
 
     count_query = """
         SELECT COUNT(*) AS total
         FROM SavedObject
-        WHERE ListID = %s"""
+        WHERE ListID = %s
+    """
 
     with get_db_connection() as conn:
         # `total`, `summary`, and `visibility` come from separate queries and
@@ -274,7 +276,7 @@ def create_list():
     insert_query = """
         INSERT INTO ObservationList (UserID, Latitude, Longitude, ListName)
         VALUES (%s, %s, %s, %s)
-        """
+    """
 
     with get_db_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
@@ -379,7 +381,8 @@ def update_list(list_id):
     update_query = f"""
         UPDATE ObservationList
         SET {", ".join(assignments)}
-        WHERE ListID = %s"""
+        WHERE ListID = %s
+    """
 
     with get_db_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
@@ -469,7 +472,7 @@ def add_objects(list_id):
         INSERT INTO SavedObject (ListID, ObjectID, ObservedStatus)
         VALUES {placeholders}
         ON DUPLICATE KEY UPDATE ObjectID = ObjectID
-        """
+    """
 
     with get_db_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
@@ -491,3 +494,102 @@ def add_objects(list_id):
         "added": added,
         "skipped": len(clean_ids) - added,
     }}), 201
+
+
+@lists_bp.route('/lists/<int:list_id>', methods=['DELETE'])
+@handle_db_errors
+def delete_list(list_id):
+    """
+    Deletes an ObservationList and everything saved to it.
+
+    Args:
+        list_id (int): The ObservationList.ListID to delete, from the URL.
+
+    Returns:
+        JSON response naming the deleted list and how many saved objects
+        went with it. A 404 if no list has that ListID.
+    """
+    count_query = """
+        SELECT COUNT(*) AS total
+        FROM SavedObject
+        WHERE ListID = %s
+    """
+
+    delete_query = """
+        DELETE FROM ObservationList
+        WHERE ListID = %s
+    """
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(LIST_COLUMNS, (list_id,))
+            observation_list = cursor.fetchone()
+
+            if observation_list is None:
+                return jsonify({"error": "Observation list not found"}), 404
+
+            # Counted before the delete, not after. SavedObject's foreign key
+            # is ON DELETE CASCADE, so those rows go with the list on their
+            # own and there's nothing left to count once it's gone. Reporting
+            # the number back is the only visible sign the cascade ran.
+            cursor.execute(count_query, (list_id,))
+            objects_removed = cursor.fetchone()['total']
+
+            cursor.execute(delete_query, (list_id,))
+            conn.commit()
+
+    return jsonify({"data": {
+        "list_id": list_id,
+        "list_name": observation_list['ListName'],
+        "objects_removed": objects_removed,
+    }})
+
+
+@lists_bp.route(
+    '/lists/<int:list_id>/objects/<int:object_id>', methods=['DELETE']
+)
+@handle_db_errors
+def remove_object(list_id, object_id):
+    """
+    Removes one CelestialObject from an ObservationList. Deletes only the
+    SavedObject row -- the list and the celestial object both survive.
+
+    Args:
+        list_id (int): The ObservationList.ListID to remove from, from the
+            URL.
+        object_id (int): The CelestialObject.ObjectID to remove, from the
+            URL.
+
+    Returns:
+        JSON response confirming which object was removed from which list.
+        A 404 if no list has that ListID, or if that object isn't saved to
+        it.
+    """
+    delete_query = """
+        DELETE FROM SavedObject
+        WHERE ListID = %s AND ObjectID = %s
+    """
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(LIST_COLUMNS, (list_id,))
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Observation list not found"}), 404
+
+            cursor.execute(delete_query, (list_id, object_id))
+
+            # At most one row can match, since (ListID, ObjectID) is
+            # SavedObject's primary key.
+            if cursor.rowcount == 0:
+                return jsonify({
+                    "error": "That object is not saved to this list"
+                }), 404
+
+            conn.commit()
+
+    # Returns a body rather than a bare 204: the frontend's flaskFetch helper
+    # always calls response.json(), which throws on an empty response.
+    return jsonify({"data": {
+        "list_id": list_id,
+        "object_id": object_id,
+    }})
