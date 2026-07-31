@@ -24,6 +24,17 @@ before following the directions below.
 
 If you add a new package to the project, don't forget to add it to requirements.txt: `pip freeze > requirements.txt`
 
+## Testing the Observation List routes
+`test_lists_routes.ps1` exercises all seven `/api/lists` routes end to end. It creates its own observation list, runs every route against it, then deletes it again -- existing data is never touched, so it's safe to run as often as you like.
+
+With the backend running, from the repo root: `.\test_lists_routes.ps1`. No virtual environment needed, since it only makes HTTP requests.
+- Add `-Pause` to stop after each change and print both a URL and a SQL
+  query, so you can watch the data change instead of taking the assertions on faith. Useful for the demo, or if you'd rather verify it yourself.
+- Add `-UserId 42` to run as a different user, or `-BaseUrl` to point
+  at a deployed backend.
+- If Windows blocks the script, `pwsh -ExecutionPolicy Bypass -File
+  .\test_lists_routes.ps1` runs it without changing any settings.
+
 ## Adding a new route
 The backend is organized as Flask Blueprints under `app/routes/`, not one
 long file, so multiple people can add routes without editing the same file.
