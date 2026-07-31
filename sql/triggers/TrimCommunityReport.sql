@@ -14,7 +14,9 @@ CREATE TRIGGER TrimCommunityReport
 BEFORE INSERT ON CommunityReport
 FOR EACH ROW
 BEGIN
-    SET NEW.ReportText = TRIM(NEW.ReportText);
+    IF NEW.ReportText IS NOT NULL THEN
+        SET NEW.ReportText = TRIM(NEW.ReportText);
+    END IF;
 END$$
 
 DELIMITER ;

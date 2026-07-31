@@ -14,7 +14,11 @@ CREATE TRIGGER TrimObservationListName
 BEFORE INSERT ON ObservationList
 FOR EACH ROW
 BEGIN
-    SET NEW.ListName = TRIM(NEW.ListName);
+    IF NEW.ListName IS NULL OR TRIM(NEW.ListName) = '' THEN
+        SET NEW.ListName = 'Untitled Observation List';
+    ELSE
+        SET NEW.ListName = TRIM(NEW.ListName);
+    END IF;
 END$$
 
 DELIMITER ;
