@@ -11,5 +11,6 @@
   ],
   "[python]": {
     "editor.tabSize": 4
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:venv"
 }

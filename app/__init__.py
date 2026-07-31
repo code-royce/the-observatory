@@ -49,10 +49,12 @@ def create_app():
     from app.routes.lists import lists_bp
     from app.routes.visibility import visibility_bp
     from app.routes.reports import reports_bp
+    from app.routes.users import users_bp
 
     app.register_blueprint(search_bp, url_prefix='/api')
     app.register_blueprint(lists_bp, url_prefix='/api')
     app.register_blueprint(visibility_bp, url_prefix='/api')
     app.register_blueprint(reports_bp, url_prefix='/api')
+    app.register_blueprint(users_bp, url_prefix='')
 
     return app
