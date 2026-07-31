@@ -13,148 +13,107 @@ CREATE PROCEDURE SearchVisibleCelestialObjects(
     IN p_Offset INT
 )
 BEGIN
-    DECLARE v_Keyword VARCHAR(250);
 
-    IF p_Keyword IS NULL THEN
-        SET v_Keyword = '';
-    ELSE
-        SET v_Keyword = TRIM(p_Keyword);
+    -- Building LIKE Pattern
+    DECLARE v_Keyword VARCHAR(250);                 -- Ex: "And"
+    DECLARE v_LikePattern VARCHAR(252);             -- Ex: "%And%"
+
+    SET v_Keyword = TRIM(COALESCE(p_Keyword, ''));  -- "  And  " -> "And"
+                                                    -- NULL     -> ""
+    IF v_Keyword = '' THEN                          -- If empty,
+        SET v_LikePattern = '%';                    -- '%'
+    ELSE                                                    -- If not empty,
+        SET v_LikePattern = CONCAT('%', v_Keyword, '%');    -- "%And%"
     END IF;
 
-    IF p_MinAltitude IS NULL THEN
-        SET p_MinAltitude = 20;
-    END IF;
 
-    IF p_Limit IS NULL OR p_Limit < 1 THEN
-        SET p_Limit = 48;
-    END IF;
+    SELECT
+    c.ObjectID,
+    c.Name,
+    c.Magnitude,
+    c.ObjectCategory,
+    c.RightAscension,
+    c.Declination,
+    c.Constellation,
 
-    IF p_Offset IS NULL OR p_Offset < 0 THEN
-        SET p_Offset = 0;
-    END IF;
+    ROUND(
+        DEGREES(
+            ASIN(
+                SIN(RADIANS(c.Declination)) * SIN(RADIANS(p_Latitude))
+                + COS(RADIANS(c.Declination)) * COS(RADIANS(p_Latitude))
+                * COS(RADIANS(p_LocalSiderealTime - c.RightAscension * 15))
+            )
+        ),
+        2
+    ) AS Altitude,
 
-    WITH MatchingObjectIDs AS (
+    COUNT(*) OVER() AS total
 
-        /*
-          Set 1: objects matching the keyword and category.
-        */
-        SELECT c.ObjectID
-        FROM CelestialObject c
-        WHERE (
-            v_Keyword = ''
-            OR c.Name LIKE CONCAT('%', v_Keyword, '%')
-            OR c.Constellation LIKE CONCAT('%', v_Keyword, '%')
+    FROM CelestialObject c JOIN (
+
+    -- Set 1: objects matching the keyword and category using the LIKE pattern
+    SELECT c.ObjectID           -- Return only ObjectIDs for the INTERSECT
+    FROM CelestialObject c
+    WHERE (
+        c.Name LIKE v_LikePattern
+                OR c.Constellation LIKE v_LikePattern
         )
         AND (
-            p_CategoryCodes IS NULL
-            OR p_CategoryCodes = ''
-            OR FIND_IN_SET(c.ObjectCategory, p_CategoryCodes) > 0
+            p_CategoryCodes IS NULL         -- No category filter was selected
+            OR p_CategoryCodes = ''         -- Category filter is empty (possibly redundant)
+            OR FIND_IN_SET(c.ObjectCategory, p_CategoryCodes)
+                                        -- Check whether this object's category code
+                                        -- appears in the selected category list.
+                                        -- LIKE cannot be used here because it performs
+                                        -- substring matching (e.g. "S" would match "SS").
         )
 
-        INTERSECT
+    INTERSECT
 
-        /*
-          Set 2: objects currently above the minimum altitude.
-        */
-        SELECT visible.ObjectID
-        FROM (
-            SELECT
-                c.ObjectID,
+    -- Set 2: objects currently above the minimum altitude (translated from visibility.py) (How high is it)
+    SELECT visible.ObjectID
+    FROM (  SELECT c.ObjectID,                                          -- subquery
                 DEGREES(
                     ASIN(
-                        SIN(RADIANS(c.Declination))
-                        * SIN(RADIANS(p_Latitude))
-                        +
-                        COS(RADIANS(c.Declination))
-                        * COS(RADIANS(p_Latitude))
-                        * COS(
-                            RADIANS(
-                                p_LocalSiderealTime
-                                - c.RightAscension * 15
-                            )
-                        )
+                        SIN(RADIANS(c.Declination)) * SIN(RADIANS(p_Latitude))
+                        + COS(RADIANS(c.Declination)) * COS(RADIANS(p_Latitude))
+                        * COS(RADIANS(p_LocalSiderealTime - c.RightAscension * 15))
                     )
                 ) AS Altitude
             FROM CelestialObject c
-            WHERE c.RightAscension IS NOT NULL
-              AND c.Declination IS NOT NULL
+            WHERE c.RightAscension IS NOT NULL AND c.Declination IS NOT NULL
         ) AS visible
-        WHERE visible.Altitude > p_MinAltitude
 
-        INTERSECT
+    WHERE visible.Altitude > p_MinAltitude          -- is it higher than p_MinAltitude that is passed as arg
 
-        /*
-          Set 3: objects bright enough under local light pollution.
-        */
-        SELECT c.ObjectID
-        FROM CelestialObject c
-        WHERE c.Magnitude IS NOT NULL
-          AND c.Magnitude <= COALESCE(
-              (
-                  SELECT l.LimitingMag
-                  FROM LightPollutionObservation l
-                  WHERE l.LimitingMag IS NOT NULL
-                    AND l.Latitude BETWEEN
-                        p_Latitude - 0.1448
-                        AND p_Latitude + 0.1448
-                    AND l.Longitude BETWEEN
-                        p_Longitude
-                            - 10 / 69.17
-                            * COS(RADIANS(p_Latitude))
-                        AND
-                        p_Longitude
-                            + 10 / 69.17
-                            * COS(RADIANS(p_Latitude))
-                  ORDER BY
-                      ABS(p_Latitude - l.Latitude),
-                      ABS(p_Longitude - l.Longitude)
-                  LIMIT 1
-              ),
-              6.0
-          )
-    )
+    INTERSECT
 
-    SELECT
-        c.ObjectID,
-        c.Name,
-        c.Magnitude,
-        c.ObjectCategory,
-        c.RightAscension,
-        c.Declination,
-        c.Constellation,
-
-        ROUND(
-            DEGREES(
-                ASIN(
-                    SIN(RADIANS(c.Declination))
-                    * SIN(RADIANS(p_Latitude))
-                    +
-                    COS(RADIANS(c.Declination))
-                    * COS(RADIANS(p_Latitude))
-                    * COS(
-                        RADIANS(
-                            p_LocalSiderealTime
-                            - c.RightAscension * 15
-                        )
-                    )
-                )
-            ),
-            2
-        ) AS Altitude,
-
-        COUNT(*) OVER() AS total
-
+    -- Set 3: objects bright enough under the local light pollution
+    SELECT c.ObjectID
     FROM CelestialObject c
-    JOIN MatchingObjectIDs m
-        ON c.ObjectID = m.ObjectID
+    WHERE c.Magnitude IS NOT NULL
+                        AND c.Magnitude <> 0
+                        AND c.Magnitude <= COALESCE((SELECT l.LimitingMag
+                                                    FROM LightPollutionObservation l
+                                                    WHERE l.LimitingMag IS NOT NULL
+                                                        AND l.Latitude BETWEEN p_Latitude - 0.1448
+                                                                        AND p_Latitude + 0.1448
+                                                        AND l.Longitude BETWEEN p_Longitude - 10 / 69.17 * COS(RADIANS(p_Latitude))
+                                                                        AND p_Longitude + 10 / 69.17 * COS(RADIANS(p_Latitude))
+                                                    ORDER BY ABS(p_Latitude - l.Latitude), ABS(p_Longitude - l.Longitude)
+                                                    LIMIT 1),
+                                                    6.0)        -- if the subquery returns NULL, use 6.0 as a fallback
+
+    ) AS MatchingObjectIDs
+        ON c.ObjectID = MatchingObjectIDs.ObjectID      -- join on c.objectId
 
     ORDER BY
-        (c.Magnitude = 0),
-        c.Magnitude,
-        Altitude DESC,
-        c.ObjectID
+    (c.Magnitude = 0),
+    c.Magnitude,
+    Altitude DESC,
+    c.ObjectID
 
-    LIMIT p_Limit
+    LIMIT p_Limit       -- pagenation
     OFFSET p_Offset;
 
 END //
