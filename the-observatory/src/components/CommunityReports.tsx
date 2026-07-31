@@ -157,6 +157,7 @@ export function CommunityReports({
                   <label className="label font-mono" htmlFor="lat">
                     Latitude
                   </label>
+                  {/* TODO: latitude isn't changeable?? */}
                   <input type="number" id="lat" name="Latitude" value={latitude}
                     onChange={(e) => { onSetLatitude(e.target.valueAsNumber)}}
                     className="input focus-visible:input-warning"/>

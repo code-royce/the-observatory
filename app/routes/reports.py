@@ -73,16 +73,7 @@ def create_report():
     longitude = body.get('longitude')
     report_text = body.get('report_text')
 
-    # Basic validation
     errors = []
-    if user_id is None:
-        errors.append("user_id is required.")
-    if latitude is None:
-        errors.append("latitude is required")
-    if longitude is None:
-        errors.append("longitude is required")
-    if not report_text or not str(report_text).strip():
-        errors.append("report_text is required")
 
     # Type validation
     if latitude is not None:
