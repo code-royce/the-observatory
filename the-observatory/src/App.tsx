@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { flaskFetch } from './components/api';
 import { StarField } from "./components/StarField";
 import { Navbar } from './components/Navbar';
-import type { Tab, User } from './components/Navbar';
+import type { Tab } from './components/Navbar';
 import { AuthModal } from "./components/AuthModal";
 import type { SearchData } from './components/ExploreView';
 import { ExploreView } from "./components/ExploreView";
 import { CommunityReports } from './components/CommunityReports';
-import type { ObjectType } from './components/data';
+import type { ObjectType, User } from './components/types';
 import { useGeolocation } from "./components/useGeolocation";
 
 import './App.css'
@@ -34,7 +34,7 @@ function App() {
         'Geolocation error:', locationError.code, locationError.message
       );
     }
-  }, [locationError])
+  }, [locationError]);
 
   const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>) => {
     setLoadingSearchResults(true);
@@ -139,11 +139,7 @@ function App() {
             longitude={coordinates.lng}
             onSetLatitude={(lat: number) => { coordinates.lat = lat; }}
             onSetLongitude={(lon: number) => { coordinates.lng = lon; }}
-            // TODO: need to get and pass currently logged in user's ID
-            // Attempting to submit a report when this value is zero will fail.
-            // Otherwise, this will successfully submit new community reports
-            // with valid user IDs
-            currentUserID={0}
+            currentUserID={user?.id}
           />
         </div>
       </main>
@@ -151,10 +147,7 @@ function App() {
       <AuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
-        onLogin={(u) => {
-          setUser(u);
-          // TODO: may need to do other things here idk yet
-        }}
+        onLogin={(u: User) => setUser(u)}
       />
     </div>
   );

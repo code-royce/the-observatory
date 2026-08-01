@@ -1,17 +1,15 @@
 import { ChevronDown, CircleUserRound, LogOut } from 'lucide-react';
+import type { User } from './types';
 
 export type Tab = "explore" | "lists" | "community";
-
-export type User = {
-  name: string;
-  email: string;
-};
 
 /**
  *
  * @param User  the custom user type with a name and email
- * @param onSignIn  function for the sign in button
- * @param onSignOut  function for the sign in button
+ * @param onSignIn  function that executes actions that should happen when the
+ *                  Sign in button is clicked
+ * @param onSignOut  function that executes actions that should happen when the
+ *                   Sign out button is clicked
  */
 interface NavbarProps {
   user: User | null;
