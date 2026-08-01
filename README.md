@@ -17,23 +17,28 @@ before following the directions below.
 5. Make a copy of `config.example.py` and rename it `config.py`.
     - Add your user name and password for the database.
     - **Never** commit a file to a repository with your login credentials.
-6. (Optional) Verify your database connection independently of Flask: `python test_connection.py`.
+6. (Optional) Verify your database connection independently of Flask: `python tests/test_connection.py`.
     - Prints `True` and lists every table if `config.py` and the connection to GCP are working.
     - Useful first check if something's broken and you're not sure whether it's Flask or the database.
 7. Start the app: `python run.py`
 
 If you add a new package to the project, don't forget to add it to requirements.txt: `pip freeze > requirements.txt`
 
-## Testing the Observation List routes
-`test_lists_routes.ps1` exercises all seven `/api/lists` routes end to end. It creates its own observation list, runs every route against it, then deletes it again -- existing data is never touched, so it's safe to run as often as you like.
+## Testing
+All tests live in `tests/`. Run them from the repo root, not from inside that
+folder. See `tests/README.md` for what each one covers and what it needs.
 
-With the backend running, from the repo root: `.\test_lists_routes.ps1`. No virtual environment needed, since it only makes HTTP requests.
-- Add `-Pause` to stop after each change and print both a URL and a SQL
-  query, so you can watch the data change instead of taking the assertions on faith. Useful for the demo, or if you'd rather verify it yourself.
-- Add `-UserId 42` to run as a different user, or `-BaseUrl` to point
-  at a deployed backend.
-- If Windows blocks the script, `pwsh -ExecutionPolicy Bypass -File
-  .\test_lists_routes.ps1` runs it without changing any settings.
+```
+python tests/test_connection.py           # config.py + Cloud SQL connectivity
+python tests/test_horizon_calculator.py   # no database needed
+python tests/test_add_constellation.py    # the AddConstellationToList procedure
+python tests/test_nearby_reports.py       # advanced query 3
+python tests/test_users_routes.py         # database mocked
+.\tests\test_lists_routes.ps1             # needs the backend running
+```
+
+Each exits non-zero when a check fails. The two that touch existing data
+create and delete their own rows, so they're safe to run as often as you like.
 
 ### Testing the users route in PowerShell
 With the backend running locally, send a POST to `/users` from PowerShell:

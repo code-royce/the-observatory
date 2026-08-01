@@ -2,13 +2,19 @@
 Smoke test for config.py and connectivity to the GCP Cloud SQL database,
 independent of Flask.
 
-Usage:
-    python test_connection.py
+Usage, from the repo root:
+    python tests/test_connection.py
 
 Prints True if the connection succeeds, then lists every table in the
 database. Run this first when debugging whether an issue is Flask or the
 database connection itself.
 """
+import sys
+from pathlib import Path
+
+# The repo root, so `import config` resolves when this runs from tests/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import config
 import mysql.connector
 
@@ -19,7 +25,8 @@ conn = mysql.connector.connect(
     database=config.DB_NAME,
     port=config.DB_PORT,
 )
-print(conn.is_connected())  # should print True
+connected = conn.is_connected()
+print(connected)  # should print True
 
 cursor = conn.cursor()
 cursor.execute("SHOW TABLES;")
@@ -28,3 +35,6 @@ for row in cursor:
 
 cursor.close()
 conn.close()
+
+if not connected:
+    sys.exit(1)
