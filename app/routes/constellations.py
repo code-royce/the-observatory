@@ -52,7 +52,7 @@ CONSTELLATION_VISIBILITY_QUERY = """
         t.Constellation,
         COALESCE(StarsVisible, 0) AS VisibleCount,
         StarCount,
-        CONCAT(ROUND((COALESCE(StarsVisible, 0) / StarCount) * 100, 0), '%%')
+        CONCAT(ROUND((COALESCE(StarsVisible, 0) / StarCount) * 100, 0), '%')
             AS VisibilityPercentage
     FROM TotalStars t
         LEFT JOIN VisibleStars USING (Constellation)
