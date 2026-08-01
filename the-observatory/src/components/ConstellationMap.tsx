@@ -1,8 +1,9 @@
 import type { ConstellationStar } from './types';
+import { CONSTELLATION_LINES } from './constellationLines';
 
 /**
  * @param stars  the constellation's stars, brightest first
- * @param label  constellation name, used for the accessible description
+ * @param label  constellation name, used to look up its figure lines
  */
 interface ConstellationMapProps {
   stars: ConstellationStar[];
@@ -13,7 +14,7 @@ interface ConstellationMapProps {
 // card gives it, so these are proportions rather than pixels.
 const WIDTH = 320;
 const HEIGHT = 220;
-const PADDING = 24;
+const PADDING = 20;
 
 /**
  * Turns a magnitude into a dot radius. Lower magnitude is brighter, so the
@@ -25,37 +26,56 @@ function radiusFor(magnitude: number): number {
 }
 
 /**
- * Plots a constellation's stars from their real coordinates.
- *
- * Right ascension is stored in hours (0-24), not degrees, which is why it is
- * multiplied by 15 here and in the backend's altitude maths. RA also runs
- * east, which on a sky chart is leftward, so the x axis is flipped.
+ * Right ascension is stored in hours; the figure lines use degrees running
+ * -180..180. Converting the stars puts both in one coordinate space.
+ */
+function raToDegrees(hours: number): number {
+  const degrees = hours * 15;
+  return degrees > 180 ? degrees - 360 : degrees;
+}
+
+/**
+ * Plots a constellation from its real coordinates, with the traditional
+ * figure drawn behind the stars.
  */
 export function ConstellationMap({ stars, label }: ConstellationMapProps) {
   if (stars.length === 0) return null;
 
-  // Constellations spanning RA 0h (Pegasus, Cassiopeia, Andromeda) have stars
-  // at both 23.9 and 0.1, which would plot at opposite edges. Shifting the
-  // low side past 24 puts them back together.
-  const rightAscensions = stars.map((s) => s.RightAscension);
-  const wraps = Math.max(...rightAscensions) - Math.min(...rightAscensions) > 12;
-  const points = stars.map((s) => ({
-    star: s,
-    ra: wraps && s.RightAscension < 12 ? s.RightAscension + 24 : s.RightAscension,
-    dec: s.Declination,
+  const segments = CONSTELLATION_LINES[label] ?? [];
+
+  const starPoints = stars.map((star) => ({
+    star,
+    ra: raToDegrees(star.RightAscension),
+    dec: star.Declination,
   }));
 
-  const raValues = points.map((p) => p.ra);
-  const decValues = points.map((p) => p.dec);
+  // Bounds cover the lines too. Only the brightest stars are sent, so a
+  // figure can reach past them and would otherwise be clipped.
+  const allRa = [
+    ...starPoints.map((p) => p.ra),
+    ...segments.flat().map(([ra]) => ra),
+  ];
+  const allDec = [
+    ...starPoints.map((p) => p.dec),
+    ...segments.flat().map(([, dec]) => dec),
+  ];
+
+  // The -180..180 seam falls at 12h, so constellations near it (Virgo, Corvus,
+  // Ursa Major) have points at both ends. Lifting the negatives past 180
+  // makes them contiguous again.
+  const wraps = Math.max(...allRa) - Math.min(...allRa) > 180;
+  const unwrap = (ra: number) => (wraps && ra < 0 ? ra + 360 : ra);
+
+  const raValues = allRa.map(unwrap);
   const minRa = Math.min(...raValues);
   const maxRa = Math.max(...raValues);
-  const minDec = Math.min(...decValues);
-  const maxDec = Math.max(...decValues);
+  const minDec = Math.min(...allDec);
+  const maxDec = Math.max(...allDec);
 
-  // Degrees of sky covered. RA hours become degrees at 15 per hour, narrowed
-  // by the cosine of the declination because meridians converge at the poles.
+  // Degrees of sky covered, narrowed by the cosine of the declination because
+  // meridians converge at the poles.
   const midDec = ((minDec + maxDec) / 2) * (Math.PI / 180);
-  const spanX = Math.max(0.5, (maxRa - minRa) * 15 * Math.cos(midDec));
+  const spanX = Math.max(0.5, (maxRa - minRa) * Math.cos(midDec));
   const spanY = Math.max(0.5, maxDec - minDec);
 
   // One scale for both axes keeps the shape true; the tighter axis decides.
@@ -66,13 +86,11 @@ export function ConstellationMap({ stars, label }: ConstellationMapProps) {
   const offsetX = (WIDTH - spanX * scale) / 2;
   const offsetY = (HEIGHT - spanY * scale) / 2;
 
-  const placed = points.map((p) => ({
-    star: p.star,
-    // Flipped: RA increases eastward, which is leftward on a sky chart.
-    x: offsetX + (maxRa - p.ra) * 15 * Math.cos(midDec) * scale,
-    // Flipped: higher declination is higher in the sky, lower in SVG y.
-    y: offsetY + (maxDec - p.dec) * scale,
-  }));
+  // Right ascension increases eastward, which is leftward on a sky chart, and
+  // higher declination is higher in the sky but lower in SVG y. Both flip.
+  const projectX = (ra: number) =>
+    offsetX + (maxRa - unwrap(ra)) * Math.cos(midDec) * scale;
+  const projectY = (dec: number) => offsetY + (maxDec - dec) * scale;
 
   const visibleCount = stars.filter((s) => s.Visible).length;
 
@@ -80,31 +98,44 @@ export function ConstellationMap({ stars, label }: ConstellationMapProps) {
     // The wrapper owns the width. A bare svg is a flex child in the card body
     // and gets shrunk to nothing.
     <div className="w-full max-w-md">
-    <svg
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      className="w-full h-auto block rounded-lg bg-base-300/50"
-      role="img"
-      aria-label={
-        `Star map of ${label}: ${stars.length} stars, ` +
-        `${visibleCount} bright enough to see from this location.`
-      }
-    >
-      {placed.map(({ star, x, y }) => (
-        <circle
-          key={`${star.Name ?? 'star'}-${star.RightAscension}-${star.Declination}`}
-          cx={x}
-          cy={y}
-          r={radiusFor(star.Magnitude)}
-          // Washed out by light pollution: drawn, but barely.
-          className={star.Visible ? 'fill-warning' : 'fill-base-content/20'}
-        >
-          <title>
-            {`${star.Name?.trim() || 'unnamed'} — magnitude ${star.Magnitude}`}
-            {star.Visible ? '' : ' (too faint to see here)'}
-          </title>
-        </circle>
-      ))}
-    </svg>
+      <svg
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        className="w-full h-auto block rounded-lg bg-base-300/50"
+        role="img"
+        aria-label={
+          `Star map of ${label}: ${stars.length} stars, ` +
+          `${visibleCount} bright enough to see from this location.`
+        }
+      >
+        {segments.map((segment, i) => (
+          <polyline
+            key={i}
+            points={segment.map(
+              ([ra, dec]) => `${projectX(ra)},${projectY(dec)}`
+            ).join(' ')}
+            className="fill-none stroke-base-content/25"
+            strokeWidth={0.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+
+        {starPoints.map(({ star, ra, dec }) => (
+          <circle
+            key={`${star.Name ?? 'star'}-${star.RightAscension}-${star.Declination}`}
+            cx={projectX(ra)}
+            cy={projectY(dec)}
+            r={radiusFor(star.Magnitude)}
+            // Washed out by light pollution: drawn, but barely.
+            className={star.Visible ? 'fill-warning' : 'fill-base-content/20'}
+          >
+            <title>
+              {`${star.Name?.trim() || 'unnamed'} — magnitude ${star.Magnitude}`}
+              {star.Visible ? '' : ' (too faint to see here)'}
+            </title>
+          </circle>
+        ))}
+      </svg>
     </div>
   );
 }
