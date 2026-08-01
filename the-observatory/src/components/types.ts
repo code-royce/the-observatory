@@ -80,19 +80,30 @@ export interface ConstellationStar {
   IsMember: boolean;
 }
 
-// Represents 1 row in the SavedObjects table.
+// One CelestialObject saved to a list, joined with ObservedStatus/AddedAt,
+// as returned by GET /api/lists/<id>. Lives only in ListDetail's own
+// paginated state -- never inside the shared `lists` array.
 export interface SavedObject {
-  ObjectID: number;
+  objectID: number;
+  name: string | null;
+  magnitude: number;
+  objectCategory: ObjectType;
+  rightAscension: number;
+  declination: number;
+  constellation: string;
   observedStatus: string;
   addedAt: string;
 }
 
-// Represents 1 row in the ObservationList table.
+// Represents 1 row in the ObservationList table, plus the ObjectCount from
+// the lightweight index route. Never carries per-object items -- that's
+// SavedObject above, fetched separately and paginated by ListDetail.
 export interface ObservationList {
   listID: number;
+  userID: number;
   name: string;
-  lat: string;
-  lon: string;
+  lat: string; // "" when the list has no saved location
+  lon: string; // "" when the list has no saved location
   createdAt: string;
-  items: SavedObject[];
+  objectCount: number;
 }

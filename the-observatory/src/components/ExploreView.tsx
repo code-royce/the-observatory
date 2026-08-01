@@ -1,12 +1,13 @@
 import { useState } from "react";
 import {
-  Search, SlidersHorizontal, Eye, ListPlus, Telescope
+  Search, SlidersHorizontal, ListPlus, Telescope
 } from "lucide-react";
 import { ALL_TYPES, TYPE_COLORS } from "./types";
 import { TYPE_ICONS } from "./type-icons";
-import type { CelestialObject, ObjectType } from "./types";
+import type { CelestialObject, ObjectType, ObservationList } from "./types";
 import { TypeBadge } from "./TypeBadge";
 import { Pager } from "./Pager";
+import { AddToListDialog } from "./AddToListDialog";
 
 /**
  * Data structure for raw JSON results from /api/search.
@@ -20,9 +21,9 @@ export type SearchData = {
 };
 
 /**
- * @param observed  CelestialObjects the user has marked as observed
- * @param onToggleObserved  Changes the observed status of a CelestialObject for
- *                          a logged in user; opens the login modal otherwise
+ * @param lists  The logged-in user's ObservationLists, for AddToListDialog
+ * @param onAddToList  Saves a CelestialObject to one of the user's lists
+ * @param onCreateList  Creates a new ObservationList
  * @param isLoggedIn  Is the user logged in
  * @param onLoginRequired  Determines whether a user needs to be logged in to
  *                         access a feature
@@ -36,8 +37,9 @@ export type SearchData = {
  *                          from the browser
  */
 interface ExploreViewProps {
-  observed: Set<number>;
-  onToggleObserved: (id: number) => void;
+  lists: ObservationList[];
+  onAddToList: (listId: number, objectId: number) => void;
+  onCreateList: (name: string, lat: string, lng: string) => Promise<ObservationList | null>;
   isLoggedIn: boolean;
   onLoginRequired: () => void;
   query: string;
@@ -50,14 +52,14 @@ interface ExploreViewProps {
   selectedTypes: Set<ObjectType>;
   onToggleType: (t: ObjectType) => void;
   onClearTypes: () => void;
-  allObservedIds: Set<number>;
   visibleTonight: boolean;
   onToggleVisibility: (on: boolean) => void;
 }
 
 export function ExploreView({
-  observed,
-  onToggleObserved,
+  lists,
+  onAddToList,
+  onCreateList,
   isLoggedIn,
   onLoginRequired,
   query,
@@ -70,17 +72,12 @@ export function ExploreView({
   selectedTypes,
   onToggleType,
   onClearTypes,
-  allObservedIds,
   visibleTonight,
   onToggleVisibility,
 }: ExploreViewProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(null);
-
-  const handleToggle = (id: number) => {
-    if (!isLoggedIn) { onLoginRequired(); return; }
-    onToggleObserved(id);
-  };
+  const [addToListTarget, setAddToListTarget] = useState<CelestialObject | null>(null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -186,7 +183,6 @@ export function ExploreView({
       {results !== null && results.total > 0 ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {results.data.map((obj) => {
-            const isObserved = observed.has(obj.ObjectID);
             return (
               <div key={obj.ObjectID}
                 className="bg-base-100 card card-border border-neutral transition-all cursor-pointer"
@@ -204,17 +200,15 @@ export function ExploreView({
                       <p className="text-sm font-mono">{obj.Constellation}</p>
                     </div>
                     <button
-                      onClick={
-                        (e) => { e.stopPropagation(); handleToggle(obj.ObjectID); }
-                      }
-                      title={isObserved ? "In your lists" : "Add to an observation list"}
-                      className={
-                        `shrink-0 btn btn-square btn-soft transition-colors${
-                          isObserved ? ' btn-warning border-warning/20' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isLoggedIn) { onLoginRequired(); return; }
+                        setAddToListTarget(obj);
+                      }}
+                      title="Add to an observation list"
+                      className="shrink-0 btn btn-square btn-soft transition-colors"
                     >
-                      {isObserved
-                        ? <Eye className="size-[1.2em]" />
-                        : <ListPlus className="size-[1.2em]" />}
+                      <ListPlus className="size-[1.2em]" />
                     </button>
                   </div>
                   <div className="flex items-center justify-between text-sm font-mono">
@@ -290,18 +284,23 @@ export function ExploreView({
               ))}
             </div>
             <button
-              onClick={() => { setSelectedObject(null); }}
-              className={`btn btn-block btn-warning${
-                allObservedIds.has(selectedObject.ObjectID) ? ' btn-soft' : ''}`}
+              onClick={() => { setAddToListTarget(selectedObject); setSelectedObject(null); }}
+              className="btn btn-block btn-warning"
             >
-              {allObservedIds.has(selectedObject.ObjectID) ?
-                "Manage in my lists" : "Add to a list"}
+              Add to a list
             </button>
           </div>
         )}
       </dialog>
 
-      {/* TODO: add the AddToListDialog here */}
+      <AddToListDialog
+        open={!!addToListTarget}
+        object={addToListTarget}
+        lists={lists}
+        onAddToList={onAddToList}
+        onCreateList={onCreateList}
+        onClose={() => setAddToListTarget(null)}
+      />
     </div>
   );
 }
