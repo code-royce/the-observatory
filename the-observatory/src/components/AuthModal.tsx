@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { X, Telescope } from 'lucide-react';
 import { flaskFetch } from './api';
+import type { User } from './types';
 
 interface AuthModalProps {
   open: boolean;
   onClose: () => void;
-  onLogin: (user: { id: number; name?: string; email: string }) => void;
+  onLogin: (user: User) => void;
 }
 
 interface CreateUserResponse {

@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { flaskFetch } from './components/api';
 import { StarField } from "./components/StarField";
 import { Navbar } from './components/Navbar';
-import type { Tab, User } from './components/Navbar';
+import type { Tab } from './components/Navbar';
 import { AuthModal } from "./components/AuthModal";
 import type { SearchData } from './components/ExploreView';
 import { ExploreView } from "./components/ExploreView";
 import { CommunityReports } from './components/CommunityReports';
-import type { ObjectType } from './components/data';
+import type { ObjectType, User } from './components/types';
 import { useGeolocation } from "./components/useGeolocation";
 
 import './App.css'
@@ -147,7 +147,7 @@ function App() {
       <AuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
-        onLogin={(u) => setUser(u)}
+        onLogin={(u: User) => setUser(u)}
       />
     </div>
   );
