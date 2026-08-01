@@ -1,16 +1,26 @@
-// ObjectCategory column in the database
-export type ObjectType =
-  | "Star"
-  | "Double Star"
-  | "Triple Star"
-  | "Galaxy"
-  | "Unidentified"
-  | "Reflection Nebula"
-  | "Open Cluster"
-  | "Globular Cluster"
-  | "Planetary Nebula"
-  | "Asterism"
-  | "Knot";
+// Corresponds with groupings of ObjectCategory columns in the database.
+// The "pd" (plate defect) is intentionally omitted.
+export const ALL_TYPES = [
+  "Star", "Double Star", "Triple Star", "Galaxy", "Unidentified",
+  "Reflection Nebula", "Open Cluster", "Globular Cluster", "Planetary Nebula",
+  "Asterism", "Knot"] as const;
+
+export type ObjectType = typeof ALL_TYPES[number];
+
+// Tailwind color classes corresponding with each ObjectType.
+export const TYPE_COLORS: Record<ObjectType, string> = {
+  Star: "text-yellow-300 bg-yellow-300/10",
+  "Double Star": "text-rose-400 bg-rose-400/10",
+  "Triple Star": "text-cyan-400 bg-cyan-400/10",
+  Galaxy: "text-blue-400 bg-blue-400/10",
+  Unidentified: "text-gray-400 bg-gray-400/10",
+  "Reflection Nebula": "text-purple-400 bg-purple-400/10",
+  "Open Cluster": "text-green-400 bg-green-400/10",
+  "Globular Cluster": "text-orange-400 bg-orange-400/10",
+  "Planetary Nebula": "text-teal-400 bg-teal-400/10",
+  Asterism: "text-amber-300 bg-amber-300/10",
+  Knot: "text-fuchsia-400 bg-fuchsia-400/10"
+};
 
 // An instance of CelestialObject represents 1 row in the CelestialObject table.
 export interface CelestialObject {
@@ -67,4 +77,21 @@ export interface ConstellationStar {
   Visible: boolean;
   // One of the stars the counts and the add button act on.
   IsMember: boolean;
+}
+
+// Represents 1 row in the SavedObjects table.
+export interface SavedObject {
+  ObjectID: number;
+  observedStatus: string;
+  addedAt: string;
+}
+
+// Represents 1 row in the ObservationList table.
+export interface ObservationList {
+  listID: number;
+  name: string;
+  lat: string;
+  lon: string;
+  createdAt: string;
+  items: SavedObject[];
 }

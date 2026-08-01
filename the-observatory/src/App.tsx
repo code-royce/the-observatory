@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { flaskFetch } from './components/api';
 import { StarField } from "./components/StarField";
 import { Navbar } from './components/Navbar';
@@ -8,7 +8,7 @@ import type { SearchData } from './components/ExploreView';
 import { ExploreView } from "./components/ExploreView";
 import { CommunityReports } from './components/CommunityReports';
 import { ConstellationsView } from './components/ConstellationsView';
-import type { ObjectType, User } from './components/types';
+import type { ObjectType, ObservationList, User } from './components/types';
 import { useGeolocation } from "./components/useGeolocation";
 
 import './App.css'
@@ -17,6 +17,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>("explore");
   const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [lists, setLists] = useState<ObservationList[]>([]);
+  // TODO: do I still need observed after converting from 1 observation list max to multiple?
   const [observed, setObserved] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchData | null>(null);
@@ -36,6 +38,13 @@ function App() {
       );
     }
   }, [locationError]);
+
+  const allObservedIds = useMemo(
+    () => new Set(lists.flatMap((l) => l.items.map((i) => i.ObjectID))),
+    [lists]
+  );
+
+  // TODO: finish list helpers section
 
   const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>) => {
     setLoadingSearchResults(true);
@@ -93,7 +102,7 @@ function App() {
         user={user}
         activeTab={activeTab}
         onSignIn={() => setAuthOpen(true)}
-        onSignOut={() => { setUser(null); setObserved(new Set()); }}
+        onSignOut={() => { setUser(null); setLists([]); setObserved(new Set()); }}
         onSetActiveTab={(tabId: Tab) => setActiveTab(tabId)}
       />
       {/* Hero banner - explore only */}
@@ -111,6 +120,7 @@ function App() {
       <main className="px-4 pb-8 pt-1 max-w-6xl mx-auto w-full">
         <div className={`${activeTab !== 'explore' ? 'hidden' : ''}`}>
           <ExploreView
+            allObservedIds={allObservedIds}
             observed={observed}
             onToggleObserved={toggleObserved}
             isLoggedIn={!!user}
