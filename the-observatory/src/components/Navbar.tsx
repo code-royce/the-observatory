@@ -1,7 +1,7 @@
 import { ChevronDown, CircleUserRound, LogOut } from 'lucide-react';
 import type { User } from './types';
 
-export type Tab = "explore" | "lists" | "community";
+export type Tab = "explore" | "constellations" | "lists" | "community";
 
 /**
  *
@@ -35,6 +35,11 @@ export function Navbar({
           <ul tabIndex={-1}
             className="menu dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
             <li><button onClick={() => onSetActiveTab("explore")}>Explore</button></li>
+            <li>
+              <button onClick={() => onSetActiveTab("constellations")}>
+                Constellations
+              </button>
+            </li>
             <li>
               <button
                 onClick={() => { if (!user) { onSignIn(); return; } onSetActiveTab("lists") }}
@@ -75,6 +80,13 @@ export function Navbar({
               className={`${activeTab === 'explore' ? 'menu-active' : ''}`}
             >
               Explore
+            </button>
+          </li>
+          <li>
+            <button onClick={() => onSetActiveTab("constellations")}
+              className={`${activeTab === 'constellations' ? 'menu-active' : ''}`}
+            >
+              Constellations
             </button>
           </li>
           <li>
