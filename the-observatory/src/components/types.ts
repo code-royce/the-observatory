@@ -31,6 +31,7 @@ export interface CelestialObject {
   RightAscension: number;
   Declination: number;
   Constellation: string;
+  Altitude?: number;
 }
 
 // An instance of CommunityReport represents 1 row in the CommunityReport table
