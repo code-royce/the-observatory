@@ -6,15 +6,32 @@ nearby_reports_bp = Blueprint('nearby_reports', __name__)
 
 # Query 3 ("community reports near a given location") from
 # doc/Database Design.pdf, with Chicago's hardcoded coordinates replaced by
-# named parameters. Named rather than positional because lat appears four
+# named parameters. Named rather than positional because lat appears six
 # times and lon three.
+#
+# The SELECT also carries columns the doc's version omits -- ReportID, author,
+# coordinates and distance -- so the page has something to render. ReportID was
+# already in the GROUP BY, so the grouping and every aggregate are unchanged.
 NEARBY_REPORTS_QUERY = """
-    SELECT ReportText,
-           CreatedAt,
-           DATEDIFF(NOW(), CreatedAt) AS DaysAgo,
-           COALESCE(AVG(LimitingMag), 6) AS AvgLimitingMag,
-           COUNT(ObservationID) AS NearbyObservations
+    SELECT c.ReportID,
+           c.ReportText,
+           u.Name AS UserName,
+           c.Latitude,
+           c.Longitude,
+           c.CreatedAt,
+           DATEDIFF(NOW(), c.CreatedAt) AS DaysAgo,
+           -- Same 69.17 miles per degree the box predicates below use.
+           ROUND(SQRT(POW((c.Latitude - %(lat)s) * 69.17, 2)
+                    + POW((c.Longitude - %(lon)s) * 69.17
+                          * COS(RADIANS(%(lat)s)), 2)), 1) AS MilesAway,
+           COALESCE(AVG(l.LimitingMag), 6) AS AvgLimitingMag,
+           -- Counts readings rather than rows: LimitingMag is NULL where no
+           -- measurement was recorded, and those never reach the average.
+           COUNT(l.LimitingMag) AS NearbyObservations
     FROM CommunityReport c
+        -- LEFT, unlike the inner join in reports.py: UserID is nullable, so an
+        -- inner join would silently drop reports written without an author.
+        LEFT JOIN Users u ON u.UserID = c.UserID
         -- Combine all CommunityReports with any LightPollutionObservations
         -- within 10 miles
         LEFT JOIN LightPollutionObservation l
@@ -29,9 +46,14 @@ NEARBY_REPORTS_QUERY = """
         AND c.Longitude BETWEEN
             %(lon)s - 10 / 69.17 * COS(RADIANS(%(lat)s))
             AND %(lon)s + 10 / 69.17 * COS(RADIANS(%(lat)s))
-    GROUP BY ReportID,
-             ReportText,
-             CreatedAt
+    -- Latitude and Longitude are qualified because both joined tables have
+    -- columns by those names.
+    GROUP BY c.ReportID,
+             c.ReportText,
+             u.Name,
+             c.Latitude,
+             c.Longitude,
+             c.CreatedAt
     ORDER BY DaysAgo
 """
 
@@ -55,12 +77,14 @@ def nearby_reports():
 
     Returns:
         JSON response containing:
-            - data: one row per nearby report, each with ReportText,
-              CreatedAt, DaysAgo (whole days since it was written),
+            - data: one row per nearby report, each with ReportID, ReportText,
+              UserName (NULL where the report has no author), Latitude,
+              Longitude, CreatedAt, DaysAgo (whole days since it was written),
+              MilesAway (straight-line distance from the location checked),
               AvgLimitingMag (faintest magnitude visible around that report,
-              averaged over the light pollution observations within 10 miles
+              averaged over the light pollution readings within 10 miles
               of it, defaulting to 6 where there are none), and
-              NearbyObservations (how many observations that average covers,
+              NearbyObservations (how many readings that average covers,
               0 when none).
             - total: number of reports returned.
             - lat, lon: the location that was checked.
@@ -86,6 +110,7 @@ def nearby_reports():
     # ("5.5", not 5.5). Convert so the frontend gets a number.
     for row in results:
         row['AvgLimitingMag'] = round(float(row['AvgLimitingMag']), 2)
+        row['MilesAway'] = float(row['MilesAway'])
 
     return jsonify({
         "data": results,
