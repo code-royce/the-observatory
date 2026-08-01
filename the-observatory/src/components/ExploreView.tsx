@@ -51,6 +51,8 @@ interface ExploreViewProps {
   onToggleType: (t: ObjectType) => void;
   onClearTypes: () => void;
   allObservedIds: Set<number>;
+  visibleTonight: boolean;
+  onToggleVisibility: (on: boolean) => void;
 }
 
 export function ExploreView({
@@ -69,10 +71,10 @@ export function ExploreView({
   onToggleType,
   onClearTypes,
   allObservedIds,
-
+  visibleTonight,
+  onToggleVisibility,
 }: ExploreViewProps) {
   const [showFilters, setShowFilters] = useState(false);
-  const [visibleTonight, setVisibleTonight] = useState(true);
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(null);
 
   const handleToggle = (id: number) => {
@@ -119,7 +121,7 @@ export function ExploreView({
         >
           Visible tonight
           <input type="checkbox" checked={visibleTonight}
-            onChange={(e) => setVisibleTonight(e.target.checked)}
+            onChange={(e) => onToggleVisibility(e.target.checked)}
             className={`toggle${visibleTonight ? " toggle-warning" : ""}`} />
         </label>
         <button onClick={() => setShowFilters((v) => !v)}
@@ -217,7 +219,9 @@ export function ExploreView({
                   </div>
                   <div className="flex items-center justify-between text-sm font-mono">
                     <span>Mag {obj.Magnitude > 0 ? "+" : ""}{obj.Magnitude}</span>
-                    <span>Visible tonight?</span>
+                    {obj.Altitude !== undefined
+                      ? <span>Alt: {obj.Altitude}°</span>
+                      : <span>Visible tonight?</span>}
                   </div>
                 </div>
               </div>

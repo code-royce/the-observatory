@@ -25,6 +25,7 @@ function App() {
   const [loadingSearchResults, setLoadingSearchResults] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
+  const [visibleTonight, setVisibleTonight] = useState(true);
 
   // TODO: maybe? without loaded, when the geoloc request finishes,
   // error is null and coordinates are empty strings. Doesn't distinguish
@@ -46,15 +47,25 @@ function App() {
 
   // TODO: finish list helpers section
 
-  const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>) => {
+  const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>, visible?: boolean) => {
     setLoadingSearchResults(true);
+    const useVisible = visible ?? visibleTonight;
     try {
       const params = new URLSearchParams();
       params.set('q', query);
       if (page) params.set('page', String(page));
       types?.forEach((t) => params.append('types', t));
 
-      const results = await flaskFetch<SearchData>(`/api/search?${params.toString()}`);
+      let endpoint: string;
+      if (useVisible && coordinates.lat && coordinates.lng) {
+        params.set('lat', String(coordinates.lat));
+        params.set('lon', String(coordinates.lng));
+        endpoint = `/api/visible-search?${params.toString()}`;
+      } else {
+        endpoint = `/api/search?${params.toString()}`;
+      }
+
+      const results = await flaskFetch<SearchData>(endpoint);
       setSearchResults(results);
     } catch (error) {
       console.error('Failed to fetch search results:', error);
@@ -76,6 +87,12 @@ function App() {
     setSelectedTypes(new Set());
     setCurrentPage(1);
     handleSearch(searchQuery, undefined, new Set());
+  };
+
+  const handleToggleVisibility = (on: boolean) => {
+    setVisibleTonight(on);
+    setCurrentPage(1);
+    handleSearch(searchQuery, undefined, selectedTypes, on);
   };
 
   const toggleObserved = (id: number) => {
@@ -140,7 +157,9 @@ function App() {
             }}
             selectedTypes={selectedTypes}
             onToggleType={toggleType}
-            onClearTypes={clearTypes} />
+            onClearTypes={clearTypes}
+            visibleTonight={visibleTonight}
+            onToggleVisibility={handleToggleVisibility} />
         </div>
         <div className={`${activeTab !== 'constellations' ? 'hidden' : ''}`}>
           <ConstellationsView
