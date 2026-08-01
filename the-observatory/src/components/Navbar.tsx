@@ -1,12 +1,7 @@
 import { ChevronDown, CircleUserRound, LogOut } from 'lucide-react';
+import type { User } from './types';
 
 export type Tab = "explore" | "lists" | "community";
-
-export type User = {
-  id: number;
-  name?: string;
-  email: string;
-};
 
 /**
  *

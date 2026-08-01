@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { MapPin, Plus, X, Check } from "lucide-react";
 import { flaskFetch } from './api';
-import type { CommunityReport } from "./data";
+import type { CommunityReport } from "./types";
 import { Pager } from "./Pager";
 
 /**
