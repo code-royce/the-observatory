@@ -80,7 +80,7 @@ export function AddToListDialog({
       className="modal modal-bottom sm:modal-middle"
       aria-labelledby="add-to-list-modal-title"
     >
-      <div className="modal-box p-0 max-w-sm overflow-hidden rounded-xl">
+      <div className="modal-box p-0 max-w-sm overflow-y-auto rounded-xl">
         <button
           onClick={() => dialogRef.current?.close()}
           className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10"
@@ -123,7 +123,7 @@ export function AddToListDialog({
               </div>
             </div>
           ) : (
-            <ul className="menu menu-vertical p-0 gap-1.5 mb-3 max-h-52 overflow-y-auto flex-nowrap">
+            <ul className="menu menu-vertical p-0 gap-1.5 mb-3 w-full max-h-52 overflow-y-auto flex-nowrap">
               {lists.map((list) => {
                 const added = justAdded.has(list.listID);
                 return (

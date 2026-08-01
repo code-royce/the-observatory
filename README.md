@@ -40,29 +40,6 @@ python tests/test_users_routes.py         # database mocked
 Each exits non-zero when a check fails. The two that touch existing data
 create and delete their own rows, so they're safe to run as often as you like.
 
-### Testing the users route in PowerShell
-With the backend running locally, send a POST to `/users` from PowerShell:
-
-```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:5000/users" -Method POST -ContentType "application/json" -Body '{"name":"Davidson","email":"davidson2@example.com"}'
-```
-
-A successful response should look like:
-
-```json
-{"message":"User created successfully.","user_id":2057}
-```
-
-Then verify the insert in the same MySQL database configured by `config.py`:
-
-```sql
-SELECT UserID, Name, Email
-FROM Users
-WHERE Email = 'davidson2@example.com';
-```
-
-If the row appears, the new user was stored successfully.
-
 ## Adding a new route
 The backend is organized as Flask Blueprints under `app/routes/`, not one
 long file, so multiple people can add routes without editing the same file.

@@ -99,14 +99,15 @@ export function MyLists({
             {lists.length} list{lists.length !== 1 ? "s" : ""} · {lists.reduce((acc, l) => acc + l.objectCount, 0)} objects total
           </p>
         </div>
-        <button onClick={() => setCreateOpen(true)} className="btn btn-warning">
-          <Plus size={15} /> New List
+        <button onClick={() => setCreateOpen(true)} className="btn btn-warning max-sm:btn-square">
+          <Plus className="size-[1.2em]"/>
+          <span className="sr-only sm:not-sr-only">New List</span>
         </button>
       </div>
 
       {/* List grid */}
       {lists.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
+        <div className="flex flex-col items-center justify-center gap-4 py-20">
           <div className="bg-warning/20 w-16 h-16 rounded-full flex items-center justify-center">
             <Telescope size={28} className="text-warning opacity-60" />
           </div>
@@ -122,7 +123,7 @@ export function MyLists({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {lists.map((list) => (
             <div key={list.listID} onClick={() => onSelectList(list.listID)}
-              className="card relative group border hover:border-primary/20 hover:bg-secondary/40 transition-all cursor-pointer"
+              className="card relative group border border-neutral bg-base-200/80 hover:border-base-300 hover:bg-base-300 transition-all cursor-pointer"
             >
               <div className="p-5">
                 {/* Header row */}
@@ -134,7 +135,7 @@ export function MyLists({
                     >
                       {list.name}
                     </h3>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
                       <MapPin size={11} />
                       <span className="text-xs truncate" style={{ fontFamily: "var(--font-family-mono)" }}>
                         {formatCoords(list.lat, list.lon)}
@@ -164,7 +165,7 @@ export function MyLists({
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
                     <span className="text-xs font-mono">
                       {formatDate(list.createdAt)}
                     </span>
@@ -178,7 +179,7 @@ export function MyLists({
           {/* Dashed "New List" card */}
           <button
             onClick={() => setCreateOpen(true)}
-            className="card border-2 border-dashed hover:border-warning/30 hover:bg-warning/5 transition-all items-center justify-center gap-3 text-muted-foreground hover:text-warning min-h-32 cursor-pointer"
+            className="card border-2 border-dashed border-current/20 hover:border-warning/30 hover:bg-warning/5 transition-all items-center justify-center gap-3 hover:text-warning min-h-32 cursor-pointer"
           >
             <Plus size={20} />
             <span className="text-sm font-medium">New List</span>
@@ -203,10 +204,10 @@ export function MyLists({
 
           <form onSubmit={handleCreate} className="flex flex-col gap-4">
             <div className="form-control flex flex-col gap-1.5">
-              <label className="label py-0">
+              <label htmlFor="list-name" className="label py-0">
                 <span className="label-text text-xs font-mono">LIST NAME *</span>
               </label>
-              <input autoFocus required value={name}
+              <input id="list-name" autoFocus required value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Backyard Summer Sessions"
                 className="input input-bordered w-full text-sm"
@@ -215,21 +216,20 @@ export function MyLists({
 
             <div className="flex gap-3">
               <div className="flex-1 form-control flex flex-col gap-1.5">
-                <label className="label py-0">
+                <label htmlFor="list-lat" className="label py-0">
                   <span className="label-text text-xs font-mono">LATITUDE</span>
                 </label>
-                <input
-                  value={lat}
+                <input id="list-lat" value={lat}
                   onChange={(e) => setLat(e.target.value)}
                   placeholder="40.7128"
                   className="input input-bordered w-full text-sm font-mono"
                 />
               </div>
               <div className="flex-1 form-control flex flex-col gap-1.5">
-                <label className="label py-0">
+                <label htmlFor="list-lon" className="label py-0">
                   <span className="label-text text-xs font-mono">LONGITUDE</span>
                 </label>
-                <input value={lng} onChange={(e) => setLng(e.target.value)}
+                <input id="list-lon" value={lng} onChange={(e) => setLng(e.target.value)}
                   placeholder="-74.0060"
                   className="input input-bordered w-full text-sm font-mono"
                 />

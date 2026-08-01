@@ -43,18 +43,13 @@ export function Navbar({
             <li>
               <button
                 onClick={() => { if (!user) { onSignIn(); return; } onSetActiveTab("lists") }}
-              >My Log</button>
+              >My Lists</button>
             </li>
             <li><button onClick={() => onSetActiveTab("community")}>Community</button></li>
             <li></li> {/* keep empty - this is a spacer */}
             {user ? (
               <>
                 <li className="px-3 py-1.5 text-xs">Signed in as {user.name}</li>
-                <li>
-                  <a href="#">
-                    <CircleUserRound className="size-[1.2em]" />Account
-                  </a>
-                </li>
                 <li>
                   <button onClick={() => onSignOut()}>
                     <LogOut className="size-[1.2em]" />Sign out
@@ -116,11 +111,6 @@ export function Navbar({
             <ul tabIndex={-1}
               className="menu dropdown-content bg-base-200 rounded-box z-1 mt-4 w-52 p-2 shadow-sm"
             >
-              <li>
-                <a href="#">
-                  <CircleUserRound className="size-[1.2em]" />Account
-                </a>
-              </li>
               <li>
                 <button onClick={() => onSignOut()}>
                   <LogOut className="size-[1.2em]" />Sign out
