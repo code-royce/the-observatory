@@ -1,29 +1,5 @@
-export type ObjectType =
-  | "Star"
-  | "Double Star"
-  | "Triple Star"
-  | "Galaxy"
-  | "Unidentified"
-  | "Reflection Nebula"
-  | "Open Cluster"
-  | "Globular Cluster"
-  | "Planetary Nebula"
-  | "Asterism"
-  | "Knot";
+import type { CelestialObject, CommunityReport } from "./types";
 
-// export type Constellation = string;
-
-export interface CelestialObject {
-  ObjectID: number;
-  Name?: string;
-  Magnitude: number;
-  ObjectCategory: ObjectType;
-  RightAscension: number;
-  Declination: number;
-  Constellation: string;
-}
-
-// Mock data
 export const CELESTIAL_OBJECTS: CelestialObject[] = [
   {
     // invisible from most of contiguous US
@@ -181,16 +157,6 @@ export const CELESTIAL_OBJECTS: CelestialObject[] = [
     Declination: 21.41,
   },
 ];
-
-export interface CommunityReport {
-  ReportID: number;
-  UserID: number;
-  UserName: string;
-  Latitude: number;
-  Longitude: number;
-  CreatedAt: string;
-  ReportText: string;
-}
 
 export const COMMUNITY_REPORTS: CommunityReport[] = [
   {

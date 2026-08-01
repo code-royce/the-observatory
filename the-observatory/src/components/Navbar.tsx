@@ -1,17 +1,15 @@
 import { ChevronDown, CircleUserRound, LogOut } from 'lucide-react';
+import type { User } from './types';
 
-export type Tab = "explore" | "lists" | "community";
-
-export type User = {
-  name: string;
-  email: string;
-};
+export type Tab = "explore" | "constellations" | "lists" | "community";
 
 /**
  *
  * @param User  the custom user type with a name and email
- * @param onSignIn  function for the sign in button
- * @param onSignOut  function for the sign in button
+ * @param onSignIn  function that executes actions that should happen when the
+ *                  Sign in button is clicked
+ * @param onSignOut  function that executes actions that should happen when the
+ *                   Sign out button is clicked
  */
 interface NavbarProps {
   user: User | null;
@@ -37,6 +35,11 @@ export function Navbar({
           <ul tabIndex={-1}
             className="menu dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
             <li><button onClick={() => onSetActiveTab("explore")}>Explore</button></li>
+            <li>
+              <button onClick={() => onSetActiveTab("constellations")}>
+                Constellations
+              </button>
+            </li>
             <li>
               <button
                 onClick={() => { if (!user) { onSignIn(); return; } onSetActiveTab("lists") }}
@@ -77,6 +80,13 @@ export function Navbar({
               className={`${activeTab === 'explore' ? 'menu-active' : ''}`}
             >
               Explore
+            </button>
+          </li>
+          <li>
+            <button onClick={() => onSetActiveTab("constellations")}
+              className={`${activeTab === 'constellations' ? 'menu-active' : ''}`}
+            >
+              Constellations
             </button>
           </li>
           <li>

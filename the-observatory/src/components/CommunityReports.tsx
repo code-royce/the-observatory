@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { MapPin, Plus, X, Check } from "lucide-react";
 import { flaskFetch } from './api';
-import type { CommunityReport } from "./data";
+import type { CommunityReport } from "./types";
 import { Pager } from "./Pager";
 
 /**
@@ -117,6 +117,14 @@ export function CommunityReports({
     handleFetchReports(1);
   }, [])
 
+  // Close the in-progress report form if the user signs out mid-draft.
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setShowForm(false);
+      setReportText('');
+    }
+  }, [isLoggedIn])
+
   return (
     <div className="flex flex-col gap-6 pt-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -150,7 +158,7 @@ export function CommunityReports({
               </button>
             </div>
             <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-              <input type="hidden" name="UserID" value={currentUserID} />
+              <input type="hidden" name="UserID" value={currentUserID ?? ''} />
               {/* Lat/Lon inputs */}
               <div className="flex gap-4 flex-wrap">
                 <div className="flex flex-col gap-2">
