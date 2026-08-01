@@ -62,9 +62,9 @@ def user_lists(user_id):
               each with an added ObjectCount.
             - total: number of lists returned.
     """
-    # LEFT JOIN, not an inner join: a list with no saved objects still has to
-    # come back. The CreateDefaultObservationList trigger gives every new user
-    # an empty list, so that is the common case, not an edge case.
+    # Chose a left join instead of an inner join so that a list without saved
+    # objects can be returned. Empty lists are common since the
+    # CreateDefaultObservationList trigger gives every new user an empty list.
     query = """
         SELECT ol.ListID, ol.UserID, ol.ListName, ol.Latitude, ol.Longitude,
                ol.CreatedAt, COUNT(s.ObjectID) AS ObjectCount
@@ -120,8 +120,8 @@ def list_detail(list_id):
     limit = int(request.args.get('limit', 48))
     offset = (page - 1) * limit
 
-    # ListID 2 in the seed data holds ~132k saved objects, so this page is
-    # always paginated the same way /api/search is -- never fetched whole.
+    # Applied pagination to this query the same as /api/search because one list
+    # can have >100k saved objects.
     # Unnamed NGC/IC rows sort to the end rather than being dropped, and
     # ObjectID breaks ties so LIMIT/OFFSET can't skip or repeat a row.
     objects_query = """
@@ -163,8 +163,8 @@ def list_detail(list_id):
             cursor.execute(LIST_METADATA_QUERY, {"list_id": list_id})
             summary = cursor.fetchall()
 
-            # COUNT() arrives as an int, but SUM() and ROUND() arrive as
-            # Decimal, which Flask serializes as a JSON string ("90", not 90).
+            # COUNT() returns an int, but SUM() and ROUND() return Decimals,
+            # which Flask serializes as a JSON string ("90", not 90).
             # Convert so every number in the summary is actually a number to
             # the frontend. A category whose rows all have a NULL
             # ObservedStatus sums to NULL, hence the `or 0`.
@@ -189,7 +189,7 @@ def list_detail(list_id):
                 })
                 visibility = cursor.fetchall()
 
-                # Same Decimal-to-int conversion the summary needs: COUNT()
+                # Same Decimal-to-int conversion as the summary because COUNT()
                 # returns an int but SUM() returns a Decimal.
                 for row in visibility:
                     row['Observable'] = int(row['Observable'] or 0)
@@ -255,10 +255,10 @@ def create_list():
     if not list_name or not str(list_name).strip():
         errors.append("list_name is required")
 
-    # Latitude and Longitude are both nullable on ObservationList, so a list
-    # with no location is valid -- only convert them when actually supplied.
-    # Their ranges are already enforced by the CHECK constraints in
-    # sql/constraints/ObservationListCoordinateConstraints.sql.
+    # Only convert Latitude and Longitude if they're supplied because they're
+    # both nullable on ObservationList. Their numerical range isn't checked so
+    # that the constraints in sql/constraints/ObservationListCoordinateConstraints.sql
+    # can apply.
     if latitude is not None:
         try:
             latitude = float(latitude)
@@ -410,6 +410,12 @@ def update_list(list_id):
     return jsonify({"data": updated_list})
 
 
+# TODO: observed_status was loosened from a 'seen'/'not seen' enum to a
+# freeform note (SavedObject.ObservedStatus is VARCHAR(250), not a real
+# enum -- the old validation here was stricter than the schema).
+
+# Note from Kristin: Consider adding a boolean "isObserved" field to the
+# SavedObjects table to replace this functionality?
 @lists_bp.route('/lists/<int:list_id>/objects', methods=['POST'])
 @handle_db_errors
 def add_objects(list_id):
@@ -427,8 +433,8 @@ def add_objects(list_id):
 
     Expects a JSON body containing:
         - object_ids: list[int] (FKs to CelestialObject), required.
-        - observed_status: str, optional. "seen" or "not seen"; defaults to
-          "not seen".
+        - observed_status: str, optional. Freeform, <=250 characters;
+          defaults to "not seen".
 
     Returns:
         JSON response reporting how many rows were added and how many were
@@ -453,9 +459,8 @@ def add_objects(list_id):
         except (TypeError, ValueError):
             errors.append(f"object_ids must all be integers; got {object_id!r}")
 
-    observed_status = str(observed_status).strip().lower()
-    if observed_status not in ('seen', 'not seen'):
-        errors.append("observed_status must be 'seen' or 'not seen'")
+    if not isinstance(observed_status, str) or len(observed_status) > 250:
+        errors.append("observed_status must be a string of 250 characters or fewer")
 
     if errors:
         return jsonify({"errors": errors}), 400
@@ -592,4 +597,51 @@ def remove_object(list_id, object_id):
     return jsonify({"data": {
         "list_id": list_id,
         "object_id": object_id,
+    }})
+
+
+@lists_bp.route(
+    '/lists/<int:list_id>/objects/<int:object_id>', methods=['PATCH']
+)
+@handle_db_errors
+def update_saved_object(list_id, object_id):
+    """
+    Updates the ObservedStatus of one CelestialObject saved to an
+    ObservationList.
+
+    STUB: not yet wired to the database. Returns dummy data so the frontend
+    can be built and tested against this route's real shape before the
+    implementation lands.
+
+    Args:
+        list_id (int): The ObservationList.ListID the object is saved to,
+            from the URL.
+        object_id (int): The CelestialObject.ObjectID to update, from the
+            URL.
+
+    Expects a JSON body containing:
+        - observed_status: str, required. Freeform, <=250 characters
+          (SavedObject.ObservedStatus is VARCHAR(250), not an enum).
+
+    Returns:
+        JSON response containing the list_id, object_id, and the
+        observed_status that was set. A 400 if the body is invalid, or a
+        404 if no list has that ListID or that object isn't saved to it.
+    """
+    body = request.get_json(silent=True) or {}
+    observed_status = body.get('observed_status')
+
+    if not isinstance(observed_status, str) or len(observed_status) > 250:
+        return jsonify({
+            "errors": ["observed_status is required and must be a string of 250 characters or fewer"]
+        }), 400
+
+    # TODO: not yet wired to the database -- returns dummy data. Still
+    # needs: 404 if list_id doesn't exist (LIST_COLUMNS) or the
+    # (list_id, object_id) row doesn't exist, then
+    # UPDATE SavedObject SET ObservedStatus = %s WHERE ListID = %s AND ObjectID = %s.
+    return jsonify({"data": {
+        "list_id": list_id,
+        "object_id": object_id,
+        "observed_status": observed_status,
     }})
