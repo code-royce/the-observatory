@@ -46,6 +46,28 @@ export interface CommunityReport {
   ReportText: string;
 }
 
+// One row of GET /api/reports/nearby -- a CommunityReport near the observer,
+// plus the light pollution measured around that report. Shaped by the query
+// rather than by CommunityReport above: no UserID, and the author is LEFT
+// JOINed so a report written without one still appears.
+export interface NearbyReport {
+  ReportID: number;
+  UserName: string | null;
+  Latitude: number;
+  Longitude: number;
+  CreatedAt: string;
+  ReportText: string;
+  // Whole days since the report was written.
+  DaysAgo: number;
+  // Straight-line distance from the location that was checked.
+  MilesAway: number;
+  // Faintest magnitude visible around the report. Falls back to 6 when
+  // NearbyObservations is 0, so the two must be read together.
+  AvgLimitingMag: number;
+  // Light pollution readings the average covers, within 10 miles.
+  NearbyObservations: number;
+}
+
 // An instance of User represents 1 row in the Users table.
 export type User = {
   id: number;

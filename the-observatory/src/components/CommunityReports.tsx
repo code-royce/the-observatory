@@ -3,6 +3,7 @@ import { MapPin, Plus, X, Check } from "lucide-react";
 import { flaskFetch } from './api';
 import type { CommunityReport } from "./types";
 import { Pager } from "./Pager";
+import { NearbyReports } from "./NearbyReports";
 
 /**
  * Data structure for raw JSON results from /api/reports
@@ -57,6 +58,9 @@ export function CommunityReports({
   const [pageSize, setPageSize] = useState(48);
   const [creatingReport, setCreatingReport] = useState(false);
   const [reportText, setReportText] = useState('');
+  // "nearby" swaps the list below for the advanced-query view. Posting a
+  // report works from either.
+  const [view, setView] = useState<'all' | 'nearby'>('all');
 
   const handleCreateReport = async (payload: NewReportPayload) => {
     setCreatingReport(true);
@@ -208,7 +212,22 @@ export function CommunityReports({
         </div>
       )}
 
-      {totalReports > 0 && (
+      <div className="join">
+        <button
+          onClick={() => setView('all')}
+          className={`btn btn-sm join-item${view === 'all' ? ' btn-warning' : ' btn-soft'}`}
+        >
+          All reports
+        </button>
+        <button
+          onClick={() => setView('nearby')}
+          className={`btn btn-sm join-item${view === 'nearby' ? ' btn-warning' : ' btn-soft'}`}
+        >
+          Nearby
+        </button>
+      </div>
+
+      {view === 'all' && totalReports > 0 && (
         <div className="flex flex-wrap items-center gap-4">
           <p className="text-primary font-mono">
             {`${totalReports} community report${totalReports !== 1 ? 's' : ''}`}
@@ -220,8 +239,12 @@ export function CommunityReports({
         </div>
       )}
 
+      {view === 'nearby' && (
+        <NearbyReports latitude={latitude} longitude={longitude} />
+      )}
+
       {/* List of Community Reports */}
-      {!loadingReports && reports.length ? (
+      {view === 'all' && !loadingReports && reports.length ? (
         <div className="flex flex-col gap-4">
           {reports.map((report) => (
             <div key={report.ReportID}
