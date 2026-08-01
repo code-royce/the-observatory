@@ -1,13 +1,40 @@
 """
 Manual checks for app/horizon_calculator.py.
 
-Run with: `python test_horizon_calculator.py`.
+Run from the repo root: `python tests/test_horizon_calculator.py`.
+Needs neither a database nor a running backend.
 """
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
+
+# The repo root, so `app` resolves when this runs from tests/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.horizon_calculator import (
     altitude, julian_date, local_sidereal_time, never_visible
 )
+
+# Every check appends here, so the run can end with a non-zero exit code.
+failures = []
+
+
+def report(passed, label):
+    """
+    Records one check's outcome.
+
+    Args:
+        passed (bool): Whether the check succeeded.
+        label (str): What was being checked, for the failure summary.
+
+    Returns:
+        None. Prints PASS or FAIL and appends to `failures` on a miss.
+    """
+    if passed:
+        print("  PASS")
+    else:
+        print("  FAIL")
+        failures.append(label)
 
 
 # --- Check 1: Julian Date at a known reference date -------------------
@@ -21,10 +48,7 @@ expected = 2451545.0
 print("Check 1: Julian Date at the J2000 epoch")
 print(f"  expected {expected}, got {result}")
 
-if abs(result - expected) < 0.01:
-    print("  PASS")
-else:
-    print("  FAIL")
+report(abs(result - expected) < 0.01, "Julian Date at J2000")
 
 
 # --- Check 2: an object directly overhead reads ~90 degrees -----------
@@ -40,10 +64,7 @@ print()
 print("Check 2: object directly overhead")
 print(f"  expected {expected}, got {result:.2f}")
 
-if abs(result - expected) < 0.5:
-    print("  PASS")
-else:
-    print("  FAIL")
+report(abs(result - expected) < 0.5, "object directly overhead")
 
 
 # --- Check 3: an equatorial object, 6 hours from transit, sits on the horizon
@@ -59,10 +80,7 @@ print()
 print("Check 3: equatorial object, 6 hours from transit")
 print(f"  expected {expected}, got {result:.2f}")
 
-if abs(result - expected) < 0.5:
-    print("  PASS")
-else:
-    print("  FAIL")
+report(abs(result - expected) < 0.5, "equatorial object on the horizon")
 
 
 # --- Check 4: Polaris should never set from latitude 40N --------------
@@ -82,10 +100,7 @@ observer_lat = 40.0
 for lst in (0, 90, 180, 270):
     result = altitude(polaris_ra, polaris_dec, observer_lat, lst)
     print(f"  LST={lst}: altitude = {result:.2f} degrees")
-    if result > 0:
-        print("  PASS")
-    else:
-        print("  FAIL")
+    report(result > 0, f"Polaris above the horizon at LST={lst}")
 
 
 # --- Check 5: Sigma Octantis never rises from latitude 40N ------------
@@ -104,10 +119,7 @@ sigma_octantis_dec = -88.956
 for lst in (0, 90, 180, 270):
     result = altitude(sigma_octantis_ra, sigma_octantis_dec, observer_lat, lst)
     print(f"  LST={lst}: altitude = {result:.2f} degrees")
-    if result < 0:
-        print("  PASS")
-    else:
-        print("  FAIL")
+    report(result < 0, f"Sigma Octantis below the horizon at LST={lst}")
 
 
 # --- Check 6: never_visible() confirms Polaris CAN be seen from lat 40N ----
@@ -125,10 +137,7 @@ else:
     print("  never_visible() returns False, so YES it can")
 print("  expected: YES")
 
-if not result:
-    print("  PASS")
-else:
-    print("  FAIL")
+report(not result, "never_visible() says Polaris is reachable")
 
 
 # --- Check 7: never_visible() confirms Sigma Octantis CANNOT be seen --------
@@ -146,10 +155,7 @@ else:
     print("  never_visible() returns False, so YES it can")
 print("  expected: NO")
 
-if result:
-    print("  PASS")
-else:
-    print("  FAIL")
+report(result, "never_visible() says Sigma Octantis is unreachable")
 
 
 # --- Reality check: are these two stars visible now in Champaign?
@@ -175,3 +181,12 @@ print("Reality check -- right now, from Champaign, IL:")
 print(f"  Vega:   altitude = {vega_alt:.2f} degrees, visible = {vega_alt > 0}")
 print(f"  Sirius: altitude = {sirius_alt:.2f} degrees, visible = {sirius_alt > 0}")
 print("  Look outside or check a stargazing app -- does this match?")
+
+print()
+if failures:
+    print(f"{len(failures)} check(s) failed:")
+    for failure in failures:
+        print(f"  - {failure}")
+    sys.exit(1)
+
+print("All checks passed.")

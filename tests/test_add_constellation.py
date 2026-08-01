@@ -7,11 +7,17 @@ deletes it again -- existing data is never modified, so it is safe to run as
 often as you like.
 
 Run from the repo root with the virtual environment active:
-    python test_add_constellation.py
+    python tests/test_add_constellation.py
 
 The procedure must already be installed on Cloud SQL. See
 sql/stored_procedures/AddConstellationToList.sql.
 """
+
+import sys
+from pathlib import Path
+
+# The repo root, so `app` and `config` resolve when this runs from tests/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from mysql.connector import DatabaseError, errorcode
 
@@ -268,5 +274,6 @@ if failures:
     print(f"{len(failures)} check(s) failed:")
     for failure in failures:
         print(f"  - {failure}")
-else:
-    print("All checks passed.")
+    sys.exit(1)
+
+print("All checks passed.")

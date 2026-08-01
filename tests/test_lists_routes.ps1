@@ -29,13 +29,13 @@
     someone who'd rather watch the data change than trust the assertions.
 
 .EXAMPLE
-    .\test_lists_routes.ps1
+    .\tests\test_lists_routes.ps1
 
 .EXAMPLE
-    .\test_lists_routes.ps1 -Pause
+    .\tests\test_lists_routes.ps1 -Pause
 
 .EXAMPLE
-    .\test_lists_routes.ps1 -BaseUrl http://127.0.0.1:5000 -UserId 42
+    .\tests\test_lists_routes.ps1 -BaseUrl http://127.0.0.1:5000 -UserId 42
 #>
 
 param(

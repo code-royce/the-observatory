@@ -1,10 +1,24 @@
-import unittest
-from unittest.mock import patch
-from mysql.connector import IntegrityError, errorcode
+"""
+Unit tests for the POST /users route, with the database mocked out.
 
+Run from the repo root with the virtual environment active:
+    python tests/test_users_routes.py
+
+No database or running backend needed, but config.py must exist -- importing
+the route pulls in app.utils, which reads it at import time.
+"""
+
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from mysql.connector import IntegrityError, errorcode
 from flask import Flask
 
-from app import create_app
+# The repo root, so `app` and `config` resolve when this runs from tests/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from app.routes.users import users_bp
 
 
@@ -95,9 +109,13 @@ class CreateUserRouteTests(unittest.TestCase):
         fake_conn.cursor_obj.lastrowid = 42
 
         with patch("app.routes.users.get_db_connection", return_value=fake_conn):
-            # Simulate duplicate key error from MySQL
+            # Simulate duplicate key error from MySQL. Keywords, not
+            # positional: Error takes (msg, errno), so passing the code first
+            # lands it in msg and leaves errno a string that matches nothing.
             def fail_execute(query, params):
-                raise IntegrityError(errorcode.ER_DUP_ENTRY, "Duplicate entry")
+                raise IntegrityError(
+                    msg="Duplicate entry", errno=errorcode.ER_DUP_ENTRY
+                )
 
             fake_conn.cursor_obj.execute = fail_execute
             response = self.client.post(
