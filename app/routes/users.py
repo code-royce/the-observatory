@@ -56,3 +56,49 @@ def create_user():
         "message": "User created successfully.",
         "user_id": user_id
     }), 201
+
+
+@users_bp.route('/users/login', methods=['POST'])
+@handle_db_errors
+def login():
+    """
+    Looks up a user by email, optionally verifying their name.
+
+    Expects a JSON object containing at least:
+        - email: string, required
+    And an optional query string parameter:
+        - name: string. Compared against the stored Name for that email.
+          Omit it (or pass it empty) to match a stored Name of null.
+
+    Returns:
+        JSON response containing the matching user's UserID, Name, and
+        Email, or a 404 error naming which of email/name didn't match.
+    """
+    data = request.get_json(silent=True) or {}
+
+    email = data.get('email')
+
+    if not isinstance(email, str) or not email.strip():
+        return jsonify({"error": "Email is a required field."}), 400
+
+    # An absent or empty `name` query parameter means "match a null Name".
+    name_param = request.args.get('name') or None
+
+    query = """
+        SELECT UserID, Name, Email
+        FROM Users
+        WHERE Email = %s
+    """
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(query, (email,))
+            user = cursor.fetchone()
+
+    if user is None:
+        return jsonify({"error": "No user found with that email."}), 404
+
+    if user['Name'] != name_param:
+        return jsonify({"error": "Name does not match the user for that email."}), 404
+
+    return jsonify(user), 200

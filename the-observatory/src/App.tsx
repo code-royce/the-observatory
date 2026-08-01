@@ -34,7 +34,7 @@ function App() {
         'Geolocation error:', locationError.code, locationError.message
       );
     }
-  }, [locationError])
+  }, [locationError]);
 
   const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>) => {
     setLoadingSearchResults(true);
@@ -139,11 +139,7 @@ function App() {
             longitude={coordinates.lng}
             onSetLatitude={(lat: number) => { coordinates.lat = lat; }}
             onSetLongitude={(lon: number) => { coordinates.lng = lon; }}
-            // TODO: need to get and pass currently logged in user's ID
-            // Attempting to submit a report when this value is zero will fail.
-            // Otherwise, this will successfully submit new community reports
-            // with valid user IDs
-            currentUserID={0}
+            currentUserID={user?.id}
           />
         </div>
       </main>
@@ -151,10 +147,7 @@ function App() {
       <AuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
-        onLogin={(u) => {
-          setUser(u);
-          // TODO: may need to do other things here idk yet
-        }}
+        onLogin={(u) => setUser(u)}
       />
     </div>
   );
