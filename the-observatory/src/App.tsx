@@ -7,6 +7,7 @@ import { AuthModal } from "./components/AuthModal";
 import type { SearchData } from './components/ExploreView';
 import { ExploreView } from "./components/ExploreView";
 import { CommunityReports } from './components/CommunityReports';
+import { ConstellationsView } from './components/ConstellationsView';
 import type { ObjectType, User } from './components/types';
 import { useGeolocation } from "./components/useGeolocation";
 
@@ -130,6 +131,15 @@ function App() {
             selectedTypes={selectedTypes}
             onToggleType={toggleType}
             onClearTypes={clearTypes} />
+        </div>
+        <div className={`${activeTab !== 'constellations' ? 'hidden' : ''}`}>
+          <ConstellationsView
+            isLoggedIn={!!user}
+            onLoginRequired={() => setAuthOpen(true)}
+            latitude={coordinates.lat}
+            longitude={coordinates.lng}
+            currentUserID={user?.id}
+          />
         </div>
         <div className={`${activeTab !== 'community' ? 'hidden' : ''}`}>
           <CommunityReports

@@ -25,6 +25,10 @@ CHAMPAIGN_LON = -88.2434
 CONSTELLATION = 'Orion'
 SCRATCH_LIST_NAME = 'constellation test (safe to delete)'
 
+# MySQL procedures have no default parameter values, so this is passed on
+# every call. 3 is what the design doc published its figures against.
+MAX_MAGNITUDE = 3
+
 # Every check appends its result here so the run ends with one verdict
 # instead of a wall of output you have to read carefully.
 failures = []
@@ -43,7 +47,8 @@ def call_procedure(cursor, list_id, constellation):
         dict: StarCount, VisibleCount, Added, and AlreadyOnList.
     """
     cursor.callproc(
-        "AddConstellationToList", (list_id, constellation, 'not seen')
+        "AddConstellationToList",
+        (list_id, constellation, 'not seen', MAX_MAGNITUDE)
     )
 
     # A procedure can emit several result sets, so its rows arrive through
@@ -89,9 +94,9 @@ try:
         SELECT COUNT(*) AS StarCount,
                SUM(Magnitude <= 6) AS AtFallback
         FROM CelestialObject
-        WHERE Constellation = %s AND Magnitude < 3
+        WHERE Constellation = %s AND Magnitude < %s
         """,
-        (CONSTELLATION,)
+        (CONSTELLATION, MAX_MAGNITUDE)
     )
     reference = cursor.fetchone()
     star_count = reference['StarCount']
@@ -197,12 +202,12 @@ try:
             AND ObjectID NOT IN (
                 SELECT ObjectID FROM (
                     SELECT ObjectID FROM CelestialObject
-                    WHERE Constellation = %s AND Magnitude < 3
+                    WHERE Constellation = %s AND Magnitude < %s
                     ORDER BY ObjectID LIMIT 1
                 ) AS KeepOne
             )
         """,
-        (scratch_list_id, CONSTELLATION)
+        (scratch_list_id, CONSTELLATION, MAX_MAGNITUDE)
     )
     conn.commit()
 

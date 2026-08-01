@@ -5,9 +5,25 @@ from app.utils import get_db_connection, handle_db_errors
 
 constellations_bp = Blueprint('constellations', __name__)
 
+# Faintest star counted as part of a constellation. 3 is the value
+# doc/Database Design.pdf published its figures against. Only 52 of the 88
+# constellations have a star that bright.
+DEFAULT_MAX_MAGNITUDE = 3
+
+MAX_MAGNITUDE_ERROR = "max_magnitude must be a number between -2 and 15"
+
+# Faintest star drawn on the star map, looser than the counting cutoff so a
+# figure has enough stars to show its shape. Lyra's parallelogram needs 4.43.
+# Cosmetic only, so it isn't exposed as a parameter.
+STAR_MAP_MAGNITUDE = 4.5
+
+# Stars drawn per constellation, brightest first. Orion has 27 at the cutoff
+# above, and the faintest are background rather than part of the figure.
+STAR_MAP_LIMIT = 20
+
 # Query 1 ("constellation visibility") from doc/Database Design.pdf, with
-# Champaign's hardcoded coordinates replaced by named parameters. Named
-# rather than positional because lat appears five times and lon three.
+# Champaign's hardcoded coordinates and the magnitude cutoff as named
+# parameters. Named rather than positional because lat appears five times.
 CONSTELLATION_VISIBILITY_QUERY = """
     WITH TotalStars AS (
         -- Table 1: Counts every significant star in each constellation
@@ -16,7 +32,7 @@ CONSTELLATION_VISIBILITY_QUERY = """
         FROM CelestialObject
         WHERE Constellation IS NOT NULL
             AND Constellation != ''
-            AND Magnitude < 3       -- Only the bright 'connect the dots' stars
+            AND Magnitude < %(max_mag)s   -- The 'connect the dots' stars
         GROUP BY Constellation
     ),
     VisibleStars AS (
@@ -26,7 +42,7 @@ CONSTELLATION_VISIBILITY_QUERY = """
         FROM CelestialObject
         WHERE Constellation IS NOT NULL
             AND Constellation != ''
-            AND Magnitude < 3       -- Only the bright 'connect the dots' stars
+            AND Magnitude < %(max_mag)s   -- The 'connect the dots' stars
             AND Magnitude <= (
                 -- Find the closest local average limiting magnitude
                 -- If NULL, defaults to surburban/rural average of 6
@@ -52,12 +68,53 @@ CONSTELLATION_VISIBILITY_QUERY = """
         t.Constellation,
         COALESCE(StarsVisible, 0) AS VisibleCount,
         StarCount,
-        CONCAT(ROUND((COALESCE(StarsVisible, 0) / StarCount) * 100, 0), '%%')
+        CONCAT(ROUND((COALESCE(StarsVisible, 0) / StarCount) * 100, 0), '%')
             AS VisibilityPercentage
     FROM TotalStars t
         LEFT JOIN VisibleStars USING (Constellation)
     ORDER BY (VisibleCount / StarCount) DESC,
              StarCount DESC
+"""
+
+
+# Feeds the star maps: the same nearest-three-observations lookup as the query
+# above, returning one row per star instead of counts. Rides along in the same
+# response, ~100KB for the whole sky, so expanding a card needs no fetch.
+CONSTELLATION_STARS_QUERY = """
+    WITH LocalLimit AS (
+        -- Faintest magnitude visible here, averaged over the three nearest
+        -- light pollution observations within roughly 10 miles.
+        SELECT COALESCE(AVG(LimitingMag), 6) AS LimitingMag
+        FROM (
+            SELECT LimitingMag
+            FROM LightPollutionObservation
+            -- 10 land miles = (approx) 0.1448 degrees latitude shift
+            WHERE Latitude BETWEEN %(lat)s - 0.1448 AND %(lat)s + 0.1448
+                AND Longitude BETWEEN
+                    %(lon)s - 10 / 69.17 * COS(RADIANS(%(lat)s))
+                    AND %(lon)s + 10 / 69.17 * COS(RADIANS(%(lat)s))
+            ORDER BY ABS(%(lat)s - Latitude),
+                     ABS(%(lon)s - Longitude)
+            LIMIT 3
+        ) AS ThreeClosest
+    )
+    SELECT c.Constellation,
+           c.Name,
+           c.RightAscension,
+           c.Declination,
+           c.Magnitude,
+           -- Does this star beat the local light pollution?
+           c.Magnitude <= l.LimitingMag AS Visible,
+           -- Is it one of the stars the counts and the add button act on?
+           c.Magnitude < %(count_mag)s AS IsMember
+    FROM CelestialObject c
+        -- Single-row CTE, so this attaches the local limit to every row
+        -- without changing the row count.
+        CROSS JOIN LocalLimit l
+    WHERE c.Constellation IS NOT NULL
+        AND c.Constellation != ''
+        AND c.Magnitude < %(star_mag)s
+    ORDER BY c.Constellation, c.Magnitude
 """
 
 
@@ -72,6 +129,9 @@ def constellation_visibility():
         lat (float): Observer's latitude in degrees. Required.
         lon (float): Observer's longitude in degrees, east-positive.
             Required.
+        max_magnitude (float): Faintest star to count as part of a
+            constellation. Optional; defaults to 3, the value the design doc
+            published. Higher includes more stars and more constellations.
 
     Returns:
         JSON response containing:
@@ -83,7 +143,9 @@ def constellation_visibility():
               number.
             - total: number of constellations returned.
             - lat, lon: the location that was checked.
-        A 400 if lat or lon is missing or out of range.
+            - max_magnitude: the cutoff that was applied.
+        A 400 if lat or lon is missing or out of range, or if max_magnitude
+        isn't a number in range.
     """
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
@@ -96,18 +158,34 @@ def constellation_visibility():
             "lat must be between -90 and 90, lon between -180 and 180"
         )}), 400
 
+    max_mag = _parse_max_magnitude(request.args.get('max_magnitude'))
+    if max_mag is None:
+        return jsonify({"error": MAX_MAGNITUDE_ERROR}), 400
+
     with get_db_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute(
-                CONSTELLATION_VISIBILITY_QUERY, {"lat": lat, "lon": lon}
+                CONSTELLATION_VISIBILITY_QUERY,
+                {"lat": lat, "lon": lon, "max_mag": max_mag}
             )
             results = cursor.fetchall()
 
+            cursor.execute(CONSTELLATION_STARS_QUERY, {
+                "lat": lat,
+                "lon": lon,
+                "count_mag": max_mag,
+                "star_mag": STAR_MAP_MAGNITUDE,
+            })
+            star_rows = cursor.fetchall()
+
     return jsonify({
         "data": results,
+        "stars": _group_stars(star_rows),
         "total": len(results),
         "lat": lat,
         "lon": lon,
+        "max_magnitude": max_mag,
+        "star_magnitude": STAR_MAP_MAGNITUDE,
     })
 
 
@@ -132,6 +210,10 @@ def add_constellation(list_id):
         - constellation: str, required. The constellation name, e.g. "Orion".
         - observed_status: str, optional. "seen" or "not seen"; defaults to
           "not seen".
+        - max_magnitude: float, optional. Faintest star to treat as part of
+          the constellation; defaults to 3. Pass the same value used to
+          display the constellation, or the counts shown won't match what
+          gets added.
 
     Returns:
         JSON response containing StarCount (bright stars the constellation
@@ -157,6 +239,10 @@ def add_constellation(list_id):
     if observed_status not in ('seen', 'not seen'):
         errors.append("observed_status must be 'seen' or 'not seen'")
 
+    max_mag = _parse_max_magnitude(body.get('max_magnitude'))
+    if max_mag is None:
+        errors.append(MAX_MAGNITUDE_ERROR)
+
     if errors:
         return jsonify({"errors": errors}), 400
 
@@ -165,7 +251,7 @@ def add_constellation(list_id):
             try:
                 cursor.callproc(
                     "AddConstellationToList",
-                    (list_id, constellation, observed_status)
+                    (list_id, constellation, observed_status, max_mag)
                 )
             except DatabaseError as e:
                 if e.errno == errorcode.ER_SIGNAL_EXCEPTION:
@@ -187,8 +273,74 @@ def add_constellation(list_id):
     return jsonify({"data": {
         "list_id": list_id,
         "constellation": constellation,
+        "max_magnitude": max_mag,
         "star_count": counts['StarCount'],
         "visible_count": counts['VisibleCount'],
         "added": counts['Added'],
         "already_on_list": counts['AlreadyOnList'],
     }}), 201
+
+
+def _group_stars(rows):
+    """
+    Turns the flat star rows into one list per constellation, for plotting.
+
+    Args:
+        rows (list[dict]): Rows from CONSTELLATION_STARS_QUERY, already
+            ordered by constellation then magnitude.
+
+    Returns:
+        dict: Constellation name -> its stars, brightest first, capped at
+            STAR_MAP_LIMIT. Constellation is dropped from each star since it
+            is the key, and Visible/IsMember become real booleans -- MySQL
+            returns comparisons as 0 and 1, which would reach the frontend as
+            numbers.
+    """
+    grouped = {}
+
+    for row in rows:
+        stars = grouped.setdefault(row['Constellation'], [])
+
+        # Rows arrive brightest first, so once a constellation is full the
+        # rest of its stars are the faintest and safe to drop.
+        if len(stars) >= STAR_MAP_LIMIT:
+            continue
+
+        stars.append({
+            "Name": row['Name'],
+            "RightAscension": row['RightAscension'],
+            "Declination": row['Declination'],
+            "Magnitude": row['Magnitude'],
+            "Visible": bool(row['Visible']),
+            "IsMember": bool(row['IsMember']),
+        })
+
+    return grouped
+
+
+def _parse_max_magnitude(value):
+    """
+    Turns a max_magnitude from a query string or JSON body into a float.
+
+    Args:
+        value: The raw value, or None if it wasn't supplied.
+
+    Returns:
+        float: DEFAULT_MAX_MAGNITUDE if value is None, otherwise the parsed
+            cutoff. None if value isn't a number or falls outside the range
+            the catalog actually holds -- callers turn that into a 400.
+    """
+    if value is None:
+        return DEFAULT_MAX_MAGNITUDE
+
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    # Sirius, the brightest star in the catalog, sits at -1.46; nothing is
+    # dimmer than about 15.
+    if not -2 <= parsed <= 15:
+        return None
+
+    return parsed

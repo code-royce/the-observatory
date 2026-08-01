@@ -10,7 +10,7 @@ Purpose:
   There is no Constellation table. CelestialObject.Constellation names the
   region of sky a star sits in, so "belongs to this constellation" is
   approximated as the brightest 'connect the dots' stars in that region
-  (Magnitude < 3).
+  (Magnitude < parMaxMagnitude).
 
   Adding the members as ordinary SavedObject rows means everything that
   already reads a list keeps working without knowing a constellation was
@@ -20,6 +20,9 @@ Parameters:
   parListID         -- ObservationList.ListID to add to
   parConstellation  -- constellation name, e.g. 'Orion'
   parObservedStatus -- 'seen' or 'not seen'
+  parMaxMagnitude   -- faintest star to treat as a member. Pass 3 to match the
+                       design doc's published figures. MySQL has no default
+                       parameter values, so every caller must supply it.
 */
 
 DROP PROCEDURE IF EXISTS AddConstellationToList;
@@ -29,7 +32,8 @@ DELIMITER //
 CREATE PROCEDURE AddConstellationToList(
     IN parListID INT,
     IN parConstellation VARCHAR(250),
-    IN parObservedStatus VARCHAR(250)
+    IN parObservedStatus VARCHAR(250),
+    IN parMaxMagnitude FLOAT
 )
 BEGIN
     DECLARE varLatitude DOUBLE;
@@ -73,7 +77,7 @@ BEGIN
             ) AS ThreeClosest
         ) AS VisibleHere
     WHERE c.Constellation = parConstellation
-        AND c.Magnitude < 3;
+        AND c.Magnitude < parMaxMagnitude;
 
     -- No constraint knows what a real constellation code is, so this one
     -- has to be raised rather than caught.
@@ -90,7 +94,7 @@ BEGIN
     SELECT parListID, c.ObjectID, parObservedStatus
     FROM CelestialObject c
     WHERE c.Constellation = parConstellation
-        AND c.Magnitude < 3
+        AND c.Magnitude < parMaxMagnitude
         AND NOT EXISTS (
             SELECT 1 FROM SavedObject s
             WHERE s.ListID = parListID
