@@ -51,6 +51,7 @@ def create_app():
     from app.routes.reports import reports_bp
     from app.routes.users import users_bp
     from app.routes.constellations import constellations_bp
+    from app.routes.nearby_reports import nearby_reports_bp
 
     app.register_blueprint(search_bp, url_prefix='/api')
     app.register_blueprint(lists_bp, url_prefix='/api')
@@ -58,5 +59,6 @@ def create_app():
     app.register_blueprint(reports_bp, url_prefix='/api')
     app.register_blueprint(users_bp, url_prefix='/api')
     app.register_blueprint(constellations_bp, url_prefix='/api')
+    app.register_blueprint(nearby_reports_bp, url_prefix='/api')
 
     return app
