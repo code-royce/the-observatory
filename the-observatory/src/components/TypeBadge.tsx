@@ -1,4 +1,4 @@
-import type { ObjectType } from "./data";
+import type { ObjectType } from "./types";
 
 interface TypeBadgeProps {
   color: string;

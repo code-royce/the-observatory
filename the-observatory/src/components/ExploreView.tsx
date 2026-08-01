@@ -3,7 +3,7 @@ import {
   Search, SlidersHorizontal, Eye, EyeOff, Star, Orbit, CircleQuestionMark,
   Sparkles, Telescope, Badge, CircleGauge, Flame, GitCommitVertical,
 } from "lucide-react";
-import type { CelestialObject, ObjectType } from "./data";
+import type { CelestialObject, ObjectType } from "./types";
 import { TypeBadge } from "./TypeBadge";
 import { Pager } from "./Pager";
 
