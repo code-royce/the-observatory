@@ -47,6 +47,8 @@ const SKY_BANDS = [
 /**
  * @param latitude  starting latitude, from the browser's geolocation
  * @param longitude  starting longitude, from the browser's geolocation
+ * @param onRequestLocation  asks the browser for the location again
+ * @param locating  whether a location request is in flight
  *
  * The coordinates seed an editable copy held here, so looking somewhere else
  * leaves the location the rest of the app uses alone.
@@ -54,16 +56,19 @@ const SKY_BANDS = [
 interface NearbyReportsProps {
   latitude?: string | number;
   longitude?: string | number;
+  onRequestLocation: () => void;
+  locating: boolean;
 }
 
-export function NearbyReports({ latitude, longitude }: NearbyReportsProps) {
+export function NearbyReports({
+  latitude, longitude, onRequestLocation, locating
+}: NearbyReportsProps) {
   const [lat, setLat] = useState<string>('');
   const [lon, setLon] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [result, setResult] = useState<NearbyReportsData | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [locating, setLocating] = useState(false);
 
   const handleFetchNearby = async (lat: number, lon: number) => {
     setLoading(true);
@@ -84,43 +89,6 @@ export function NearbyReports({ latitude, longitude }: NearbyReportsProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  // useGeolocation only asks once, on mount, so a denied or timed-out prompt
-  // can otherwise only be retried by reloading the page. Asking again here
-  // also gives the coordinates a visible control -- most people don't know
-  // their own latitude.
-  const handleUseMyLocation = () => {
-    if (!('geolocation' in navigator)) {
-      setLoadError(
-        'This browser cannot report a location. Enter coordinates instead.'
-      );
-      return;
-    }
-
-    setLocating(true);
-    setLoadError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false);
-        setLat(String(position.coords.latitude));
-        setLon(String(position.coords.longitude));
-        handleFetchNearby(position.coords.latitude, position.coords.longitude);
-      },
-      (error) => {
-        setLocating(false);
-        if (error.code === error.PERMISSION_DENIED) {
-          setLoadError(
-            'Location is blocked for this site. Allow it from the icon at the '
-            + 'left of the address bar, or type coordinates below.'
-          );
-        } else {
-          setLoadError(`Could not get your location: ${error.message}`);
-        }
-      },
-      // Longer than the hook's 5 seconds, which is tight for a cold GPS fix.
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
   };
 
   // useGeolocation reports empty strings until the browser answers, so wait
@@ -178,7 +146,7 @@ export function NearbyReports({ latitude, longitude }: NearbyReportsProps) {
           {loading ? 'Checking...' : 'Find nearby reports'}
         </button>
         <button className="btn btn-soft"
-          onClick={handleUseMyLocation}
+          onClick={onRequestLocation}
           disabled={locating || loading}
         >
           <LocateFixed className="size-[1.2em]" />

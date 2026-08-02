@@ -46,7 +46,10 @@ export function StarField() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none"
+      /* Fixed, not absolute: inside a positioned wrapper the canvas would
+        stretch to the document's height, which on a long page means redrawing
+        thousands of stars across a multi-megapixel surface. */
+      className="fixed inset-0 w-full h-full pointer-events-none"
       aria-hidden
     />
   );

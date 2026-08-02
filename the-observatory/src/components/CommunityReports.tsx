@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { MapPin, Plus, X, Check } from "lucide-react";
+import { MapPin, Plus, X, Check, Telescope, LocateFixed } from "lucide-react";
 import { flaskFetch } from './api';
 import type { CommunityReport } from "./types";
 import { Pager } from "./Pager";
 import { NearbyReports } from "./NearbyReports";
+import { locationErrorMessage } from "./useGeolocation";
 
 /**
  * Data structure for raw JSON results from /api/reports
@@ -37,8 +38,11 @@ interface CommunityReportsProps {
   latitude?: string | number;
   longitude?: string | number;
   currentUserID?: number;
-  onSetLatitude: (value: number) => void;
-  onSetLongitude: (value: number) => void;
+  onSetLatitude: (value: string) => void;
+  onSetLongitude: (value: string) => void;
+  onRequestLocation: () => void;
+  locating: boolean;
+  locationError: { code: number; message: string } | null;
 }
 
 export function CommunityReports({
@@ -48,10 +52,15 @@ export function CommunityReports({
   longitude,
   currentUserID,
   onSetLatitude,
-  onSetLongitude
+  onSetLongitude,
+  onRequestLocation,
+  locating,
+  locationError
 }: CommunityReportsProps) {
   const [showForm, setShowForm] = useState(false);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [reports, setReports] = useState<CommunityReport[]>([]);
   const [totalReports, setTotalReports] = useState(0);
   const [page, setPage]  = useState(1);
@@ -84,6 +93,15 @@ export function CommunityReports({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setFormError(null);
+
+    // A report with no coordinates can never be found by the Nearby view, so
+    // it is worth stopping here rather than storing something unreachable.
+    if (latitude === '' || latitude === undefined
+      || longitude === '' || longitude === undefined) {
+      setFormError('Enter a latitude and longitude first.');
+      return;
+    }
 
     try {
       await handleCreateReport({
@@ -92,14 +110,19 @@ export function CommunityReports({
         longitude,
         report_text: reportText,
       });
-    } catch {
-      // handleCreateReport already logs the error.
+      setReportText('');
+      setShowForm(false);
+    } catch (error) {
       // The form stays open so the user can retry.
+      setFormError(
+        error instanceof Error ? error.message : 'Could not post that report.'
+      );
     }
   }
 
   const handleFetchReports = async (page?: number) => {
     setLoadingReports(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (page) params.set('page', String(page));
@@ -111,6 +134,9 @@ export function CommunityReports({
       setPageSize(results.limit);
     } catch (error) {
       console.error('Failed to fetch community reports:', error);
+      setLoadError(
+        error instanceof Error ? error.message : 'Could not load reports.'
+      );
     } finally {
       setLoadingReports(false);
     }
@@ -164,14 +190,15 @@ export function CommunityReports({
             <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
               <input type="hidden" name="UserID" value={currentUserID ?? ''} />
               {/* Lat/Lon inputs */}
-              <div className="flex gap-4 flex-wrap">
+              <div className="flex gap-4 flex-wrap items-end">
                 <div className="flex flex-col gap-2">
                   <label className="label font-mono" htmlFor="lat">
                     Latitude
                   </label>
-                  {/* TODO: latitude isn't changeable?? */}
+                  {/* String, not number: valueAsNumber is NaN for a half-typed
+                    "-" or "40.", which wipes the box mid-entry. */}
                   <input type="number" id="lat" name="Latitude" value={latitude}
-                    onChange={(e) => { onSetLatitude(e.target.valueAsNumber)}}
+                    onChange={(e) => onSetLatitude(e.target.value)}
                     className="input focus-visible:input-warning"/>
                 </div>
                 <div className="flex flex-col gap-2">
@@ -180,10 +207,24 @@ export function CommunityReports({
                   </label>
                   <input type="number" id="lon" name="Longitude"
                     value={longitude}
-                    onChange={(e) => { onSetLongitude(e.target.valueAsNumber) }}
+                    onChange={(e) => onSetLongitude(e.target.value)}
                     className="input focus-visible:input-warning" />
                 </div>
+                <button type="button" className="btn btn-soft"
+                  onClick={onRequestLocation} disabled={locating}
+                >
+                  <LocateFixed className="size-[1.2em]" />
+                  {locating ? 'Locating...' : 'Use my location'}
+                </button>
               </div>
+
+              {(formError || locationError) && (
+                <div role="alert" className="alert alert-error">
+                  <span>
+                    {formError ?? locationErrorMessage(locationError)}
+                  </span>
+                </div>
+              )}
               <div className="flex flex-col gap-2 w-full">
                 <label className="label font-mono" htmlFor="report-text">
                   Observation Notes
@@ -240,7 +281,21 @@ export function CommunityReports({
       )}
 
       {view === 'nearby' && (
-        <NearbyReports latitude={latitude} longitude={longitude} />
+        <NearbyReports latitude={latitude} longitude={longitude}
+          onRequestLocation={onRequestLocation} locating={locating} />
+      )}
+
+      {view === 'all' && loadError && (
+        <div role="alert" className="alert alert-error">
+          <span>{loadError}</span>
+        </div>
+      )}
+
+      {view === 'all' && !loadingReports && !loadError && !reports.length && (
+        <div className="flex flex-col items-center gap-3 py-16 text-neutral-content">
+          <Telescope size={32} className="opacity-40" />
+          <p>No community reports yet. Be the first to post one.</p>
+        </div>
       )}
 
       {/* List of Community Reports */}
@@ -252,7 +307,11 @@ export function CommunityReports({
             >
               <div className="card-body">
                 <h2 className="card-title">
-                  {report.UserName}
+                  {/* Null once the author deletes their account -- the report
+                    survives, the person doesn't. */}
+                  {report.UserName ?? (
+                    <span className="opacity-60">Deleted user</span>
+                  )}
                   <span className="px-2 text-sm font-mono">
                     {report.CreatedAt.replace(/:00\s/, ' ')}
                   </span>

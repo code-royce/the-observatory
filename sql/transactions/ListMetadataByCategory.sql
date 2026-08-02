@@ -13,10 +13,11 @@ app/routes/lists.py -> list_detail(), at REPEATABLE READ. See
 ListVisibilityByCategory.sql for the second.
 
 This is Query 2 ("observation list metadata") from doc/Database Design.pdf,
-unchanged except that the hardcoded ListID is now a bound parameter and the
-comparison value is 'seen' rather than 'Seen' to match the casing actually
-stored in SavedObject. That change is cosmetic -- the column's collation is
-case-insensitive, so both forms return identical counts.
+unchanged except that the hardcoded ListID is now a bound parameter and that
+SavedObject.ObservedStatus was replaced by a real boolean, IsObserved, so
+SUM(ObservedStatus = 'Seen') is now SUM(IsObserved). Same counts, and the
+comparison can no longer be defeated by a note being stored in the same
+column.
 
 Parameters:
   list_id -- ObservationList.ListID to summarize
@@ -24,8 +25,8 @@ Parameters:
 
 SELECT ObjectCategory,
        COUNT(ObjectID) AS TotalSaved,
-       SUM(ObservedStatus = 'seen') AS Observed,
-       ROUND(SUM(ObservedStatus = 'seen') / COUNT(ObjectID) * 100, 0)
+       SUM(IsObserved) AS Observed,
+       ROUND(SUM(IsObserved) / COUNT(ObjectID) * 100, 0)
            AS CompletionRate
 FROM ObservationList
     NATURAL JOIN SavedObject

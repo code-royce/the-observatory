@@ -21,11 +21,15 @@ def reports():
     limit = int(request.args.get('limit', 48))
     offset = (page - 1) * limit
 
-    # Query to get all community reports, with pagination
+    # Query to get all community reports, with pagination.
+    # LEFT JOIN, not NATURAL JOIN: CommunityReport.UserID is ON DELETE SET
+    # NULL, so a deleted user's reports survive without an author. An inner
+    # join would drop them while the count below still counted them, leaving
+    # the pager short a row per orphaned report.
     query_reports = f"""
         SELECT ReportID, UserID, Name AS UserName, Latitude, Longitude,
                CreatedAt, ReportText
-        FROM CommunityReport NATURAL JOIN Users
+        FROM CommunityReport LEFT JOIN Users USING (UserID)
         ORDER BY CreatedAt DESC
         LIMIT %s
         OFFSET %s"""
@@ -112,7 +116,7 @@ def create_report():
                 """
                 SELECT ReportID, UserID, Name AS UserName, Latitude, Longitude,
                        CreatedAt, ReportText
-                FROM CommunityReport NATURAL JOIN Users
+                FROM CommunityReport LEFT JOIN Users USING (UserID)
                 WHERE ReportID = %s
                 """,
                 (new_id,)

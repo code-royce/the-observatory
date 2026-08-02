@@ -206,10 +206,11 @@ def add_constellation(list_id):
     Args:
         list_id (int): The ObservationList.ListID to add to, from the URL.
 
+    Stars arrive unobserved -- SavedObject.IsObserved defaults to FALSE, so
+    ticking them off afterwards is the user's job.
+
     Expects a JSON body containing:
         - constellation: str, required. The constellation name, e.g. "Orion".
-        - observed_status: str, optional. "seen" or "not seen"; defaults to
-          "not seen".
         - max_magnitude: float, optional. Faintest star to treat as part of
           the constellation; defaults to 3. Pass the same value used to
           display the constellation, or the counts shown won't match what
@@ -225,19 +226,12 @@ def add_constellation(list_id):
     body = request.get_json(silent=True) or {}
 
     constellation = body.get('constellation')
-    observed_status = body.get('observed_status', 'not seen')
 
     errors = []
     if not constellation or not str(constellation).strip():
         errors.append("constellation is required")
     else:
         constellation = str(constellation).strip()
-
-    # No CHECK constrains ObservedStatus, so this is the only thing keeping
-    # arbitrary strings out of the column.
-    observed_status = str(observed_status).strip().lower()
-    if observed_status not in ('seen', 'not seen'):
-        errors.append("observed_status must be 'seen' or 'not seen'")
 
     max_mag = _parse_max_magnitude(body.get('max_magnitude'))
     if max_mag is None:
@@ -251,7 +245,7 @@ def add_constellation(list_id):
             try:
                 cursor.callproc(
                     "AddConstellationToList",
-                    (list_id, constellation, observed_status, max_mag)
+                    (list_id, constellation, max_mag)
                 )
             except DatabaseError as e:
                 if e.errno == errorcode.ER_SIGNAL_EXCEPTION:

@@ -111,7 +111,7 @@ def list_detail(list_id):
               list has no coordinates saved, since visibility is meaningless
               without a location.
             - objects: this page of saved objects, each joined to its
-              CelestialObject row and carrying ObservedStatus and AddedAt.
+              CelestialObject row and carrying IsObserved, Notes and AddedAt.
             - total: total number of objects saved to the list.
             - page, limit: the pagination that was applied.
         A 404 if no list has that ListID.
@@ -127,7 +127,7 @@ def list_detail(list_id):
     objects_query = """
         SELECT c.ObjectID, c.Name, c.Magnitude, c.ObjectCategory,
                c.RightAscension, c.Declination, c.Constellation,
-               s.ObservedStatus, s.AddedAt
+               s.IsObserved, s.Notes, s.AddedAt
         FROM SavedObject s
             JOIN CelestialObject c ON c.ObjectID = s.ObjectID
         WHERE s.ListID = %s
@@ -166,8 +166,7 @@ def list_detail(list_id):
             # COUNT() returns an int, but SUM() and ROUND() return Decimals,
             # which Flask serializes as a JSON string ("90", not 90).
             # Convert so every number in the summary is actually a number to
-            # the frontend. A category whose rows all have a NULL
-            # ObservedStatus sums to NULL, hence the `or 0`.
+            # the frontend.
             for row in summary:
                 row['Observed'] = int(row['Observed'] or 0)
                 row['CompletionRate'] = int(row['CompletionRate'] or 0)
@@ -226,7 +225,8 @@ def create_list():
 
     Expects a JSON body containing:
         - user_id: int (FK to Users), required
-        - list_name: str, required
+        - list_name: str, optional. Blank or missing is left to the
+          TrimObservationListName trigger, which names it for the user.
         - latitude: float, optional
         - longitude: float, optional
 
@@ -252,8 +252,9 @@ def create_list():
         except (TypeError, ValueError):
             errors.append("user_id must be an integer")
 
-    if not list_name or not str(list_name).strip():
-        errors.append("list_name is required")
+    # No check on list_name: TrimObservationListName trims it, and names a
+    # blank one 'Untitled Observation List'. Rejecting it here would make that
+    # branch of the trigger unreachable through the API.
 
     # Only convert Latitude and Longitude if they're supplied because they're
     # both nullable on ObservationList. Their numerical range isn't checked so
@@ -291,8 +292,11 @@ def create_list():
                 )
             except IntegrityError as e:
                 if e.errno == errorcode.ER_DUP_ENTRY:
+                    sent = str(list_name).strip() if list_name else ''
                     return jsonify({"errors": [
-                        f"This user already has a list named '{list_name}'."
+                        f"This user already has a list named '{sent}'."
+                        if sent else
+                        "This user already has an untitled list. Name this one to tell them apart."
                     ]}), 409
                 if e.errno == errorcode.ER_NO_REFERENCED_ROW_2:
                     return jsonify({"errors": [
@@ -410,12 +414,6 @@ def update_list(list_id):
     return jsonify({"data": updated_list})
 
 
-# TODO: observed_status was loosened from a 'seen'/'not seen' enum to a
-# freeform note (SavedObject.ObservedStatus is VARCHAR(250), not a real
-# enum -- the old validation here was stricter than the schema).
-
-# Note from Kristin: Consider adding a boolean "isObserved" field to the
-# SavedObjects table to replace this functionality?
 @lists_bp.route('/lists/<int:list_id>/objects', methods=['POST'])
 @handle_db_errors
 def add_objects(list_id):
@@ -431,10 +429,11 @@ def add_objects(list_id):
     Args:
         list_id (int): The ObservationList.ListID to add to, from the URL.
 
+    Objects arrive unobserved and unannotated -- IsObserved defaults to FALSE
+    and Notes to NULL. Marking one off is a PATCH to the object afterwards.
+
     Expects a JSON body containing:
         - object_ids: list[int] (FKs to CelestialObject), required.
-        - observed_status: str, optional. Freeform, <=250 characters;
-          defaults to "not seen".
 
     Returns:
         JSON response reporting how many rows were added and how many were
@@ -445,7 +444,6 @@ def add_objects(list_id):
     body = request.get_json(silent=True) or {}
 
     object_ids = body.get('object_ids')
-    observed_status = body.get('observed_status', 'not seen')
 
     errors = []
     if not isinstance(object_ids, list) or not object_ids:
@@ -459,22 +457,19 @@ def add_objects(list_id):
         except (TypeError, ValueError):
             errors.append(f"object_ids must all be integers; got {object_id!r}")
 
-    if not isinstance(observed_status, str) or len(observed_status) > 250:
-        errors.append("observed_status must be a string of 250 characters or fewer")
-
     if errors:
         return jsonify({"errors": errors}), 400
 
     # One multi-row INSERT rather than one statement per object.
-    placeholders = ", ".join(["(%s, %s, %s)"] * len(clean_ids))
+    placeholders = ", ".join(["(%s, %s)"] * len(clean_ids))
     values = []
     for object_id in clean_ids:
-        values.extend([list_id, object_id, observed_status])
+        values.extend([list_id, object_id])
 
     # SavedObject's primary key is (ListID, ObjectID), so re-adding an object
     # is a duplicate-key error. Re-adding is ordinary user behavior though.
     insert_query = f"""
-        INSERT INTO SavedObject (ListID, ObjectID, ObservedStatus)
+        INSERT INTO SavedObject (ListID, ObjectID)
         VALUES {placeholders}
         ON DUPLICATE KEY UPDATE ObjectID = ObjectID
     """
@@ -606,12 +601,8 @@ def remove_object(list_id, object_id):
 @handle_db_errors
 def update_saved_object(list_id, object_id):
     """
-    Updates the ObservedStatus of one CelestialObject saved to an
-    ObservationList.
-
-    STUB: not yet wired to the database. Returns dummy data so the frontend
-    can be built and tested against this route's real shape before the
-    implementation lands.
+    Marks one CelestialObject saved to an ObservationList as observed, or
+    annotates it, or both. Any field left out of the body is left unchanged.
 
     Args:
         list_id (int): The ObservationList.ListID the object is saved to,
@@ -619,29 +610,79 @@ def update_saved_object(list_id, object_id):
         object_id (int): The CelestialObject.ObjectID to update, from the
             URL.
 
-    Expects a JSON body containing:
-        - observed_status: str, required. Freeform, <=250 characters
-          (SavedObject.ObservedStatus is VARCHAR(250), not an enum).
+    Expects a JSON body containing any of:
+        - is_observed: bool
+        - notes: str or null, <=250 characters
 
     Returns:
-        JSON response containing the list_id, object_id, and the
-        observed_status that was set. A 400 if the body is invalid, or a
-        404 if no list has that ListID or that object isn't saved to it.
+        JSON response containing the updated SavedObject row. A 400 if the
+        body is invalid or empty, or a 404 if no list has that ListID or that
+        object isn't saved to it.
     """
     body = request.get_json(silent=True) or {}
-    observed_status = body.get('observed_status')
 
-    if not isinstance(observed_status, str) or len(observed_status) > 250:
-        return jsonify({
-            "errors": ["observed_status is required and must be a string of 250 characters or fewer"]
-        }), 400
+    errors = []
 
-    # TODO: not yet wired to the database -- returns dummy data. Still
-    # needs: 404 if list_id doesn't exist (LIST_COLUMNS) or the
-    # (list_id, object_id) row doesn't exist, then
-    # UPDATE SavedObject SET ObservedStatus = %s WHERE ListID = %s AND ObjectID = %s.
-    return jsonify({"data": {
-        "list_id": list_id,
-        "object_id": object_id,
-        "observed_status": observed_status,
-    }})
+    # Same partial-update shape as update_list: the column names are literals
+    # written here, never taken from the body, so only values are parameterized.
+    assignments = []
+    values = []
+
+    if 'is_observed' in body:
+        is_observed = body.get('is_observed')
+        if not isinstance(is_observed, bool):
+            errors.append("is_observed must be true or false")
+        else:
+            assignments.append("IsObserved = %s")
+            values.append(is_observed)
+
+    if 'notes' in body:
+        notes = body.get('notes')
+        # Null clears the note; the column is nullable.
+        if notes is not None and (
+            not isinstance(notes, str) or len(notes) > 250
+        ):
+            errors.append("notes must be a string of 250 characters or fewer")
+        else:
+            assignments.append("Notes = %s")
+            values.append(notes)
+
+    if not assignments and not errors:
+        errors.append("Send is_observed, notes, or both")
+
+    if errors:
+        return jsonify({"errors": errors}), 400
+
+    update_query = f"""
+        UPDATE SavedObject
+        SET {", ".join(assignments)}
+        WHERE ListID = %s AND ObjectID = %s
+    """
+
+    read_back = """
+        SELECT ListID, ObjectID, IsObserved, Notes, AddedAt
+        FROM SavedObject
+        WHERE ListID = %s AND ObjectID = %s
+    """
+
+    with get_db_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(LIST_COLUMNS, (list_id,))
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Observation list not found"}), 404
+
+            cursor.execute(update_query, (*values, list_id, object_id))
+
+            # rowcount is 0 both when no such row exists and when the update
+            # changed nothing, so the row is looked up rather than inferred.
+            cursor.execute(read_back, (list_id, object_id))
+            updated = cursor.fetchone()
+
+            if updated is None:
+                return jsonify({
+                    "error": "That object is not saved to this list"
+                }), 404
+
+            conn.commit()
+
+    return jsonify({"data": updated})

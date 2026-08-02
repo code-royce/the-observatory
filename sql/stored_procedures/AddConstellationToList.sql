@@ -19,10 +19,12 @@ Purpose:
 Parameters:
   parListID         -- ObservationList.ListID to add to
   parConstellation  -- constellation name, e.g. 'Orion'
-  parObservedStatus -- 'seen' or 'not seen'
   parMaxMagnitude   -- faintest star to treat as a member. Pass 3 to match the
                        design doc's published figures. MySQL has no default
                        parameter values, so every caller must supply it.
+
+Newly added stars are left unobserved -- SavedObject.IsObserved defaults to
+FALSE, so marking them off is the user's job afterwards.
 */
 
 DROP PROCEDURE IF EXISTS AddConstellationToList;
@@ -32,7 +34,6 @@ DELIMITER //
 CREATE PROCEDURE AddConstellationToList(
     IN parListID INT,
     IN parConstellation VARCHAR(250),
-    IN parObservedStatus VARCHAR(250),
     IN parMaxMagnitude FLOAT
 )
 BEGIN
@@ -90,8 +91,8 @@ BEGIN
     -- Stars already on the list are filtered out rather than left to
     -- collide: (ListID, ObjectID) is SavedObject's primary key, and a
     -- single duplicate would abort the INSERT, adding none of the rest.
-    INSERT INTO SavedObject (ListID, ObjectID, ObservedStatus)
-    SELECT parListID, c.ObjectID, parObservedStatus
+    INSERT INTO SavedObject (ListID, ObjectID)
+    SELECT parListID, c.ObjectID
     FROM CelestialObject c
     WHERE c.Constellation = parConstellation
         AND c.Magnitude < parMaxMagnitude

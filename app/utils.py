@@ -23,6 +23,11 @@ def get_db_connection():
     )
 
 
+# A violated CHECK constraint is the user typing something out of range, not
+# the server breaking, so it comes back as a 400 the frontend can show.
+ER_CHECK_CONSTRAINT_VIOLATED = 3819
+
+
 def handle_db_errors(f):
     """
     Wrap a route so mysql.connector errors always come back as JSON, not a
@@ -35,12 +40,15 @@ def handle_db_errors(f):
     Returns:
         Callable: The wrapped route function. Behaves the same as f, except
             a mysql.connector.Error raised inside it is caught and turned
-            into a JSON 500 response instead of propagating.
+            into JSON -- a 400 for a violated CHECK constraint, a 500 for
+            anything else -- instead of propagating.
     """
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
             return f(*args, **kwargs)
         except Error as e:
+            if e.errno == ER_CHECK_CONSTRAINT_VIOLATED:
+                return jsonify({"errors": [str(e)]}), 400
             return jsonify({"error": str(e)}), 500
     return wrapper

@@ -224,7 +224,7 @@ try {
 
     Wait-ForCheck "$($ObjectIds.Count) objects added -- ObjectCount changed, and the detail route now returns summary + visibility" `
         "$BaseUrl/api/lists/$listId" `
-        "SELECT ObjectID, ObservedStatus, AddedAt FROM SavedObject WHERE ListID = $listId;"
+        "SELECT ObjectID, IsObserved, Notes, AddedAt FROM SavedObject WHERE ListID = $listId;"
 
     # --- Update -----------------------------------------------------------
     $r = Invoke-Api PATCH "/api/lists/$listId" @{ list_name = "$listName (renamed)" }
@@ -243,6 +243,35 @@ try {
 
     $r = Invoke-Api PATCH '/api/lists/999999' @{ list_name = 'Ghost' }
     Report 'PATCH on a missing list is 404' ($r.Status -eq 404) "got $($r.Status)"
+
+    # --- Update a saved object --------------------------------------------
+    # What the transaction's metadata query counts, so this is what moves the
+    # progress panel on the list page.
+    $objectId = $ObjectIds[0]
+    $r = Invoke-Api PATCH "/api/lists/$listId/objects/$objectId" `
+        @{ is_observed = $true; notes = 'Clear, no moon.' }
+    Report 'PATCH marks a saved object observed' `
+        (($r.Status -eq 200) -and ($r.Body.data.IsObserved -eq 1) `
+            -and ($r.Body.data.Notes -eq 'Clear, no moon.')) `
+        "status $($r.Status), IsObserved $($r.Body.data.IsObserved)"
+
+    $r = Invoke-Api PATCH "/api/lists/$listId/objects/$objectId" @{ notes = $null }
+    Report 'PATCH leaves is_observed alone when only notes are sent' `
+        (($r.Status -eq 200) -and ($r.Body.data.IsObserved -eq 1) `
+            -and ($null -eq $r.Body.data.Notes)) `
+        "status $($r.Status), IsObserved $($r.Body.data.IsObserved)"
+
+    $r = Invoke-Api PATCH "/api/lists/$listId/objects/$objectId" @{}
+    Report 'PATCH on an object with an empty body is rejected (400)' `
+        ($r.Status -eq 400) "got $($r.Status)"
+
+    $r = Invoke-Api PATCH "/api/lists/$listId/objects/999999" @{ is_observed = $true }
+    Report 'PATCH on an object not saved to the list is 404' `
+        ($r.Status -eq 404) "got $($r.Status)"
+
+    Wait-ForCheck "object $objectId marked observed -- the list page's progress panel counts this row" `
+        "$BaseUrl/api/lists/$listId" `
+        "SELECT ObjectID, IsObserved, Notes FROM SavedObject WHERE ListID = $listId;"
 
     # --- Delete -----------------------------------------------------------
     $r = Invoke-Api DELETE "/api/lists/$listId/objects/$($ObjectIds[0])"

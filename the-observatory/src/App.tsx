@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import { flaskFetch } from './components/api';
 import { StarField } from "./components/StarField";
 import { Navbar } from './components/Navbar';
@@ -37,9 +38,23 @@ function mapObservationList(row: ObservationListRow): ObservationList {
   };
 }
 
+// Signing in only takes an email, so nothing secret is kept here -- this is
+// just so a refresh doesn't drop the session.
+const USER_STORAGE_KEY = 'observatory.user';
+
+function readStoredUser(): User | null {
+  try {
+    const stored = localStorage.getItem(USER_STORAGE_KEY);
+    return stored ? (JSON.parse(stored) as User) : null;
+  } catch {
+    // Corrupt entry, or storage blocked in this browser.
+    return null;
+  }
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>("explore");
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(readStoredUser);
   const [authOpen, setAuthOpen] = useState(false);
   const [lists, setLists] = useState<ObservationList[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,11 +64,11 @@ function App() {
   const [selectedTypes, setSelectedTypes] = useState<Set<ObjectType>>(new Set());
   const [visibleTonight, setVisibleTonight] = useState(true);
   const [myListsView, setMyListsView] = useState<"grid" | number>("grid");
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // TODO: maybe? without loaded, when the geoloc request finishes,
-  // error is null and coordinates are empty strings. Doesn't distinguish
-  // between waiting and "failed with no message", but not sure if problematic
-  const { coordinates, locationError } = useGeolocation();
+  const {
+    coordinates, locationError, locating, requestLocation, setCoordinates
+  } = useGeolocation();
 
   useEffect(() => {
     if (locationError) {
@@ -62,6 +77,23 @@ function App() {
       );
     }
   }, [locationError]);
+
+  // Everything the user clicks goes through here. flaskFetch throws with the
+  // server's own message, so a rejected constraint or a 409 arrives as text
+  // worth showing rather than a console line nobody reads.
+  const runAction = async <T,>(
+    action: () => Promise<T>, onFailure: T
+  ): Promise<T> => {
+    setActionError(null);
+    try {
+      return await action();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : 'Something went wrong.'
+      );
+      return onFailure;
+    }
+  };
 
   const fetchLists = async (userId: number) => {
     try {
@@ -87,7 +119,7 @@ function App() {
     name: string, lat: string, lng: string
   ): Promise<ObservationList | null> => {
     if (!user) return null;
-    try {
+    return runAction(async () => {
       const body: Record<string, unknown> = { user_id: user.id, list_name: name };
       if (lat) body.latitude = Number(lat);
       if (lng) body.longitude = Number(lng);
@@ -98,29 +130,23 @@ function App() {
       const created = mapObservationList({ ...res.data, ObjectCount: 0 });
       setLists((prev) => [created, ...prev]);
       return created;
-    } catch (error) {
-      console.error('Failed to create list:', error);
-      return null;
-    }
+    }, null);
   };
 
   const handleDeleteList = async (listId: number): Promise<boolean> => {
-    try {
+    return runAction(async () => {
       await flaskFetch(`/api/lists/${listId}`, { method: 'DELETE' });
       setLists((prev) => prev.filter((l) => l.listID !== listId));
       setMyListsView((v) => (v === listId ? "grid" : v));
       return true;
-    } catch (error) {
-      console.error('Failed to delete list:', error);
-      return false;
-    }
+    }, false);
   };
 
   const handleUpdateList = async (
     listId: number,
     patch: Partial<Pick<ObservationList, "name" | "lat" | "lon">>
   ): Promise<boolean> => {
-    try {
+    return runAction(async () => {
       const body: Record<string, unknown> = {};
       if (patch.name !== undefined) body.list_name = patch.name;
       if (patch.lat) body.latitude = Number(patch.lat);
@@ -133,60 +159,48 @@ function App() {
         ? { ...mapObservationList(res.data), objectCount: l.objectCount }
         : l));
       return true;
-    } catch (error) {
-      console.error('Failed to update list:', error);
-      return false;
-    }
+    }, false);
   };
 
   const handleAddObjectToList = async (
-    listId: number, objectId: number, observedStatus?: string
+    listId: number, objectId: number
   ): Promise<boolean> => {
-    try {
-      const body: Record<string, unknown> = { object_ids: [objectId] };
-      if (observedStatus !== undefined) body.observed_status = observedStatus;
+    return runAction(async () => {
       const res = await flaskFetch<{ data: { added: number } }>(
         `/api/lists/${listId}/objects`,
-        { method: 'POST', body: JSON.stringify(body) }
+        { method: 'POST', body: JSON.stringify({ object_ids: [objectId] }) }
       );
       setLists((prev) => prev.map((l) => l.listID === listId
         ? { ...l, objectCount: l.objectCount + res.data.added }
         : l));
       return true;
-    } catch (error) {
-      console.error('Failed to add object to list:', error);
-      return false;
-    }
+    }, false);
   };
 
   const handleRemoveObjectFromList = async (
     listId: number, objectId: number
   ): Promise<boolean> => {
-    try {
+    return runAction(async () => {
       await flaskFetch(`/api/lists/${listId}/objects/${objectId}`, { method: 'DELETE' });
       setLists((prev) => prev.map((l) => l.listID === listId
         ? { ...l, objectCount: Math.max(0, l.objectCount - 1) }
         : l));
       return true;
-    } catch (error) {
-      console.error('Failed to remove object from list:', error);
-      return false;
-    }
+    }, false);
   };
 
-  const handleUpdateObservedStatus = async (
-    listId: number, objectId: number, observedStatus: string
+  const handleUpdateSavedObject = async (
+    listId: number,
+    objectId: number,
+    patch: { is_observed?: boolean; notes?: string | null }
   ): Promise<boolean> => {
-    try {
+    return runAction(async () => {
       await flaskFetch(`/api/lists/${listId}/objects/${objectId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ observed_status: observedStatus }),
+        body: JSON.stringify(patch),
       });
       return true;
-    } catch (error) {
-      console.error('Failed to update observed status:', error);
-      return false;
-    }
+    }, false);
   };
 
   const handleSearch = async (query: string, page?: number, types?: Set<ObjectType>, visible?: boolean) => {
@@ -254,8 +268,13 @@ function App() {
         user={user}
         activeTab={activeTab}
         onSignIn={() => setAuthOpen(true)}
-        onSignOut={() => { setUser(null); setLists([]); setMyListsView('grid'); }}
-        onSetActiveTab={(tabId: Tab) => setActiveTab(tabId)}
+        onSignOut={() => {
+          localStorage.removeItem(USER_STORAGE_KEY);
+          setUser(null); setLists([]); setMyListsView('grid');
+        }}
+        // Errors belong to the thing that was clicked, so they don't follow
+        // the user to another tab.
+        onSetActiveTab={(tabId: Tab) => { setActiveTab(tabId); setActionError(null); }}
       />
       {/* Hero banner - explore only */}
       <div className={`hero min-h-80${activeTab !== 'explore' ? ' hidden' : ''}`}>
@@ -294,7 +313,13 @@ function App() {
             onToggleType={toggleType}
             onClearTypes={clearTypes}
             visibleTonight={visibleTonight}
-            onToggleVisibility={handleToggleVisibility} />
+            onToggleVisibility={handleToggleVisibility}
+            hasLocation={
+              typeof coordinates.lat === 'number'
+              && typeof coordinates.lng === 'number'
+            }
+            onRequestLocation={requestLocation}
+            locating={locating} />
         </div>
         <div className={`${activeTab !== 'constellations' ? 'hidden' : ''}`}>
           <ConstellationsView
@@ -302,7 +327,10 @@ function App() {
             onLoginRequired={() => setAuthOpen(true)}
             latitude={coordinates.lat}
             longitude={coordinates.lng}
+            onRequestLocation={requestLocation}
+            locating={locating}
             currentUserID={user?.id}
+            onListsChanged={() => { if (user) fetchLists(user.id); }}
           />
         </div>
         <div className={`${activeTab !== 'lists' || !user ? 'hidden' : ''}`}>
@@ -317,7 +345,7 @@ function App() {
               onUpdate={handleUpdateList}
               onDelete={() => handleDeleteList(activeList.listID)}
               onRemoveItem={handleRemoveObjectFromList}
-              onUpdateObservedStatus={handleUpdateObservedStatus}/>
+              onUpdateSavedObject={handleUpdateSavedObject}/>
           ) : (
             // Fall back to grid if list was deleted from elsewhere
             <MyLists lists={lists} userName={user?.name ?? ""}
@@ -333,17 +361,39 @@ function App() {
             onLoginRequired={() => setAuthOpen(true)}
             latitude={coordinates.lat}
             longitude={coordinates.lng}
-            onSetLatitude={(lat: number) => { coordinates.lat = lat; }}
-            onSetLongitude={(lon: number) => { coordinates.lng = lon; }}
+            onSetLatitude={(lat) => setCoordinates({ lat })}
+            onSetLongitude={(lng) => setCoordinates({ lng })}
+            onRequestLocation={requestLocation}
+            locating={locating}
+            locationError={locationError}
             currentUserID={user?.id}
           />
         </div>
       </main>
 
+      {/* One place for anything the user clicked that the database refused,
+        so constraint messages reach them instead of the console. */}
+      {actionError && (
+        <div className="toast toast-center toast-bottom z-50">
+          <div role="alert" className="alert alert-error">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)}
+              className="btn btn-square btn-xs btn-soft"
+            >
+              <X size={14} />
+              <span className="sr-only">Dismiss</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <AuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
-        onLogin={(u: User) => { setUser(u); setActiveTab('explore'); }}
+        onLogin={(u: User) => {
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
+          setUser(u); setActiveTab('explore');
+        }}
       />
     </div>
   );

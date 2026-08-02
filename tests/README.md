@@ -34,7 +34,9 @@ every table.
 **`test_add_constellation.py`** creates its own `ObservationList` and deletes
 it in a `finally` block, so existing data is never touched. It requires the
 procedure to already be installed on Cloud SQL — the files in `sql/` are not
-applied automatically. It passes magnitude 3 explicitly, which is what
+applied automatically. A `1318 Incorrect number of arguments` failure means the
+installed copy is older than `sql/stored_procedures/AddConstellationToList.sql`
+and needs re-running. It passes magnitude 3 explicitly, which is what
 `doc/Database Design.pdf` published its figures against, so its expected
 values stay comparable to the doc.
 
@@ -49,7 +51,9 @@ is gitignored.
 
 **`test_lists_routes.ps1`** needs no virtual environment, only a running
 backend. It creates its own observation list, exercises every route against
-it, then deletes it.
+it, then deletes it. That includes marking a saved object observed, which is
+what the transaction's metadata query counts, so a failure there usually shows
+up as a stuck progress panel on the list page.
 
 - `-Pause` stops after each change and prints a URL and a SQL query, so you
   can watch the data change instead of taking the assertions on faith.
