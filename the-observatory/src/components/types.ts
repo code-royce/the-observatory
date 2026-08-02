@@ -35,11 +35,12 @@ export interface CelestialObject {
 }
 
 // An instance of CommunityReport represents 1 row in the CommunityReport table
-// NATURAL JOINed with the UserID and UserName columns of the Users table.
+// LEFT JOINed with the UserID and UserName columns of the Users table. Both are
+// null once the author's account is deleted -- the FK is ON DELETE SET NULL.
 export interface CommunityReport {
   ReportID: number;
-  UserID: number;
-  UserName: string;
+  UserID: number | null;
+  UserName: string | null;
   Latitude: number;
   Longitude: number;
   CreatedAt: string;
@@ -102,7 +103,7 @@ export interface ConstellationStar {
   IsMember: boolean;
 }
 
-// One CelestialObject saved to a list, joined with ObservedStatus/AddedAt,
+// One CelestialObject saved to a list, joined with IsObserved/Notes/AddedAt,
 // as returned by GET /api/lists/<id>. Lives only in ListDetail's own
 // paginated state -- never inside the shared `lists` array.
 export interface SavedObject {
@@ -113,7 +114,8 @@ export interface SavedObject {
   rightAscension: number;
   declination: number;
   constellation: string;
-  observedStatus: string;
+  isObserved: boolean;
+  notes: string | null;
   addedAt: string;
 }
 

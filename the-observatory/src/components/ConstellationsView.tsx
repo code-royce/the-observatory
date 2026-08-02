@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  ChevronDown, ExternalLink, MapPin, Plus, Telescope, Check,
+  ChevronDown, ExternalLink, MapPin, Plus, Telescope, Check, LocateFixed,
 } from "lucide-react";
 import { flaskFetch } from './api';
 import type { ConstellationStar, ConstellationVisibility } from "./types";
@@ -62,6 +62,8 @@ type SortMode = "visible" | "name";
 /**
  * @param latitude  starting latitude, from the browser's geolocation
  * @param longitude  starting longitude, from the browser's geolocation
+ * @param onRequestLocation  asks the browser for the location again
+ * @param locating  whether a location request is in flight
  *
  * The coordinates seed an editable copy held here, so checking another sky
  * leaves the location the rest of the app uses alone.
@@ -71,7 +73,11 @@ interface ConstellationsViewProps {
   onLoginRequired: () => void;
   latitude?: string | number;
   longitude?: string | number;
+  onRequestLocation: () => void;
+  locating: boolean;
   currentUserID?: number;
+  /** Called after a write so the rest of the app can refresh its own copy. */
+  onListsChanged: () => void;
 }
 
 export function ConstellationsView({
@@ -79,7 +85,10 @@ export function ConstellationsView({
   onLoginRequired,
   latitude,
   longitude,
+  onRequestLocation,
+  locating,
   currentUserID,
+  onListsChanged,
 }: ConstellationsViewProps) {
   const [lat, setLat] = useState<string>('');
   const [lon, setLon] = useState<string>('');
@@ -140,25 +149,26 @@ export function ConstellationsView({
         `/api/lists/${selectedListID}/constellations`,
         {
           method: 'POST',
-          body: JSON.stringify({
-            constellation,
-            observed_status: 'not seen',
-          }),
+          body: JSON.stringify({ constellation }),
         }
       );
 
       const { added, already_on_list } = response.data;
+      const target = lists.find((list) => list.ListID === selectedListID);
+      const where = target ? ` to ${target.ListName}` : '';
       setAddResults((prev) => ({
         ...prev,
         [constellation]: added > 0
-          ? `Added ${added} star${added !== 1 ? 's' : ''}`
-          : `Already saved (${already_on_list})`,
+          ? `Added ${added} star${added !== 1 ? 's' : ''}${where}`
+          : `Already saved${where} (${already_on_list})`,
       }));
 
       // Keep the selector's object counts honest after a write.
       setLists((prev) => prev.map((list) => list.ListID === selectedListID
         ? { ...list, ObjectCount: list.ObjectCount + added }
         : list));
+
+      if (added > 0) onListsChanged();
     } catch (error) {
       console.error('Failed to add constellation:', error);
       setAddResults((prev) => ({
@@ -184,6 +194,12 @@ export function ConstellationsView({
     if (currentUserID) handleFetchLists(currentUserID);
     else { setLists([]); setSelectedListID(null); }
   }, [currentUserID]);
+
+  // Naming the target on the button means nobody has to scroll back to the
+  // selector to find out where the stars are going.
+  const targetList = lists.find((list) => list.ListID === selectedListID);
+  const addLabel = targetList
+    ? `Add to ${targetList.ListName}` : 'Add to my list';
 
   // Every constellation with stars to draw, whether or not it earned a
   // ranking row. Those with nothing brighter than the counting cutoff are
@@ -263,6 +279,13 @@ export function ConstellationsView({
         >
           <MapPin className="size-[1.2em]" />
           {loading ? 'Checking...' : 'Check this sky'}
+        </button>
+        <button className="btn btn-soft"
+          onClick={onRequestLocation}
+          disabled={locating || loading}
+        >
+          <LocateFixed className="size-[1.2em]" />
+          {locating ? 'Locating...' : 'Use my location'}
         </button>
       </div>
 
@@ -393,7 +416,7 @@ export function ConstellationsView({
                       {addResults[row.name]
                         ? <Check className="size-[1.2em]" />
                         : <Plus className="size-[1.2em]" />}
-                      {addingTo === row.name ? 'Adding...' : 'Add to my list'}
+                      {addingTo === row.name ? 'Adding...' : addLabel}
                     </button>
 
                     <a className="btn btn-sm btn-soft"

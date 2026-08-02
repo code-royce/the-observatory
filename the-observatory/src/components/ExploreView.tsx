@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Search, SlidersHorizontal, ListPlus, Telescope
+  Search, SlidersHorizontal, ListPlus, Telescope, LocateFixed
 } from "lucide-react";
 import { ALL_TYPES, TYPE_COLORS } from "./types";
 import { TYPE_ICONS } from "./type-icons";
@@ -21,6 +21,22 @@ export type SearchData = {
 };
 
 /**
+ * Formats a right ascension for display. The catalog stores it in hours,
+ * 0-24, so degrees would be wrong by a factor of 15.
+ *
+ * Args:
+ *     hours: Right ascension in decimal hours.
+ *
+ * Returns:
+ *     The same angle as hours and minutes, e.g. "5h 55m".
+ */
+function formatRA(hours: number): string {
+  if (hours === null || Number.isNaN(hours)) return "—";
+  const wholeHours = Math.floor(hours);
+  return `${wholeHours}h ${Math.round((hours - wholeHours) * 60)}m`;
+}
+
+/**
  * @param lists  The logged-in user's ObservationLists, for AddToListDialog
  * @param onAddToList  Saves a CelestialObject to one of the user's lists
  * @param onCreateList  Creates a new ObservationList
@@ -33,8 +49,9 @@ export type SearchData = {
  * @param selectedTypes  Object categories the results are currently filtered to
  * @param onToggleType  Toggles a single object category filter on/off
  * @param onClearTypes  Clears all object category filters
- * @param usingGeolocation  whether or not the user's location was received
- *                          from the browser
+ * @param hasLocation  Whether real coordinates are known yet
+ * @param onRequestLocation  Asks the browser for the location again
+ * @param locating  Whether a location request is in flight
  */
 interface ExploreViewProps {
   lists: ObservationList[];
@@ -54,6 +71,9 @@ interface ExploreViewProps {
   onClearTypes: () => void;
   visibleTonight: boolean;
   onToggleVisibility: (on: boolean) => void;
+  hasLocation: boolean;
+  onRequestLocation: () => void;
+  locating: boolean;
 }
 
 export function ExploreView({
@@ -74,6 +94,9 @@ export function ExploreView({
   onClearTypes,
   visibleTonight,
   onToggleVisibility,
+  hasLocation,
+  onRequestLocation,
+  locating,
 }: ExploreViewProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(null);
@@ -81,21 +104,24 @@ export function ExploreView({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* TODO: if the user doesn't accept loc perms/it fails, add inputs for lat/lon */}
-      {/* <fieldset className="fieldset">
-        <legend className="fieldset-legend">
-          Enter your location to get precise visibility results.
-        </legend>
-        <label className="label">
-          <input type="checkbox" defaultChecked className="toggle toggle-primary" />
-          <span className="text-primary">Use Current Location</span>
-        </label>
-        <label className="input flex-1">
-          <input type="text" value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Location" />
-        </label>
-      </fieldset> */}
+      {/* Without coordinates the "visible tonight" toggle silently falls back
+        to a plain keyword search, so say so rather than quietly ignoring it. */}
+      {visibleTonight && !hasLocation && (
+        <div role="alert"
+          className="flex flex-wrap items-center justify-between gap-4 rounded-box border border-warning/30 bg-warning/10 px-4 py-3"
+        >
+          <span className="text-sm">
+            Share your location for results filtered to what is actually up
+            right now.
+          </span>
+          <button onClick={onRequestLocation} disabled={locating}
+            className="btn btn-sm btn-soft"
+          >
+            <LocateFixed className="size-[1.2em]" />
+            {locating ? 'Locating...' : 'Use my location'}
+          </button>
+        </div>
+      )}
 
       {/* Search and filter button */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
@@ -104,6 +130,7 @@ export function ExploreView({
             <Search size={16} />
             <input id="search" type="search" value={query}
               onChange={(e) => onSetQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onSearch(); }}
               required placeholder="Search by name or constellation" />
           </label>
           <button onClick={() => onSearch()} disabled={loadingResults}
@@ -150,7 +177,7 @@ export function ExploreView({
               ))}
             </div>
           </div>
-          {(selectedTypes.size > 0 || false || false) && (
+          {selectedTypes.size > 0 && (
             <button onClick={onClearTypes}
               className="btn btn-link text-neutral-content hover:text-white"
             >
@@ -213,9 +240,8 @@ export function ExploreView({
                   </div>
                   <div className="flex items-center justify-between text-sm font-mono">
                     <span>Mag {obj.Magnitude > 0 ? "+" : ""}{obj.Magnitude}</span>
-                    {obj.Altitude !== undefined
-                      ? <span>Alt: {obj.Altitude}°</span>
-                      : <span>Visible tonight?</span>}
+                    {/* Only the visible-search route returns an altitude. */}
+                    {obj.Altitude !== undefined && <span>Alt: {obj.Altitude}°</span>}
                   </div>
                 </div>
               </div>
@@ -270,11 +296,13 @@ export function ExploreView({
             </div>
             <div className="grid grid-cols-2 gap-3 mb-5">
               {[
+                // Brighter than magnitude 0 is negative, so only positive
+                // magnitudes take the leading plus astronomers write.
                 ["Magnitude",
-                  selectedObject.Magnitude ?? NaN > 0 ?
-                    `+${selectedObject.Magnitude}` : `${selectedObject.Magnitude}`
+                  (selectedObject.Magnitude ?? 0) > 0
+                    ? `+${selectedObject.Magnitude}` : `${selectedObject.Magnitude}`
                 ],
-                ["Right Ascension", selectedObject.RightAscension + "°"],
+                ["Right Ascension", formatRA(selectedObject.RightAscension)],
                 ["Declination", selectedObject.Declination + "°"],
               ].map(([label, val]) => (
                 <div key={label} className="rounded-lg bg-base-300 p-3">
@@ -284,10 +312,16 @@ export function ExploreView({
               ))}
             </div>
             <button
-              onClick={() => { setAddToListTarget(selectedObject); setSelectedObject(null); }}
+              onClick={() => {
+                setSelectedObject(null);
+                // Same gate as the card's add button: without an account there
+                // is nothing to save to, and creating a list would fail.
+                if (!isLoggedIn) { onLoginRequired(); return; }
+                setAddToListTarget(selectedObject);
+              }}
               className="btn btn-block btn-warning"
             >
-              Add to a list
+              {isLoggedIn ? 'Add to a list' : 'Sign in to add to a list'}
             </button>
           </div>
         )}

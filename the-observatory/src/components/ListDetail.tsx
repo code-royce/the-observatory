@@ -8,6 +8,8 @@ import { TYPE_ICONS } from './type-icons';
 import type { ObjectType, ObservationList, SavedObject } from "./types";
 import { TypeBadge } from "./TypeBadge";
 import { Pager } from "./Pager";
+import { ListProgress } from "./ListProgress";
+import type { ListSummaryRow, ListVisibilityRow } from "./ListProgress";
 
 const PAGE_SIZE = 48;
 
@@ -19,12 +21,16 @@ interface SavedObjectRow {
   RightAscension: number;
   Declination: number;
   Constellation: string;
-  ObservedStatus: string;
+  // MySQL sends a TINYINT back as 0 or 1, not a JSON boolean.
+  IsObserved: number;
+  Notes: string | null;
   AddedAt: string;
 }
 
 interface ListDetailResponse {
   objects: SavedObjectRow[];
+  summary: ListSummaryRow[];
+  visibility: ListVisibilityRow[];
   total: number;
   page: number;
   limit: number;
@@ -39,14 +45,11 @@ function mapSavedObject(row: SavedObjectRow): SavedObject {
     rightAscension: row.RightAscension,
     declination: row.Declination,
     constellation: row.Constellation,
-    observedStatus: row.ObservedStatus,
+    isObserved: Boolean(row.IsObserved),
+    notes: row.Notes,
     addedAt: row.AddedAt,
   };
 }
-
-// The backend defaults a newly-saved object's ObservedStatus to this exact
-// string. Treated as "no note yet" rather than literal note text.
-const NO_NOTE_SENTINEL = "not seen";
 
 interface ListDetailProps {
   list: ObservationList;
@@ -57,8 +60,10 @@ interface ListDetailProps {
   ) => void;
   onDelete: () => void;
   onRemoveItem: (listId: number, objectId: number) => Promise<boolean>;
-  onUpdateObservedStatus: (
-    listId: number, objectId: number, observedStatus: string
+  onUpdateSavedObject: (
+    listId: number,
+    objectId: number,
+    patch: { is_observed?: boolean; notes?: string | null }
   ) => Promise<boolean>;
 }
 
@@ -72,7 +77,7 @@ export function ListDetail({
   onUpdate,
   onDelete,
   onRemoveItem,
-  onUpdateObservedStatus
+  onUpdateSavedObject
 }: ListDetailProps) {
   const [editingHeader, setEditingHeader] = useState(false);
   const [draftName, setDraftName] = useState(list.name);
@@ -80,11 +85,16 @@ export function ListDetail({
   const [draftLon, setDraftLon] = useState(list.lon);
 
   const [objects, setObjects] = useState<SavedObject[]>([]);
+  const [summary, setSummary] = useState<ListSummaryRow[]>([]);
+  const [visibility, setVisibility] = useState<ListVisibilityRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  // Bumped after a save so the transaction reruns and its counts move.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [draftNote, setDraftNote] = useState("");
+  const [draftObserved, setDraftObserved] = useState(false);
 
   const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
   const [confirmDeleteList, setConfirmDeleteList] = useState(false);
@@ -104,11 +114,15 @@ export function ListDetail({
       .then((res) => {
         if (cancelled) return;
         setObjects(res.objects.map(mapSavedObject));
+        setSummary(res.summary);
+        setVisibility(res.visibility);
         setTotal(res.total);
       })
       .catch((error) => console.error('Failed to fetch list objects:', error));
     return () => { cancelled = true; };
-  }, [list.listID, page]);
+    // lat/lon are dependencies because the visibility half of the response is
+    // empty until the list has coordinates.
+  }, [list.listID, list.lat, list.lon, page, refreshKey]);
 
   const startHeaderEdit = () => {
     setDraftName(list.name);
@@ -127,19 +141,26 @@ export function ListDetail({
     setEditingHeader(false);
   };
 
-  const startNoteEdit = (objectId: number, currentStatus: string) => {
-    setEditingNoteId(objectId);
-    setDraftNote(currentStatus === NO_NOTE_SENTINEL ? "" : currentStatus);
+  const startNoteEdit = (item: SavedObject) => {
+    setEditingNoteId(item.objectID);
+    setDraftNote(item.notes ?? "");
+    setDraftObserved(item.isObserved);
   };
 
   const saveNote = async (objectId: number) => {
     const note = draftNote.trim();
-    const ok = await onUpdateObservedStatus(list.listID, objectId, note);
+    const notes = note === "" ? null : note;
+    const ok = await onUpdateSavedObject(list.listID, objectId, {
+      is_observed: draftObserved,
+      notes,
+    });
     if (ok) {
       setObjects((prev) => prev.map((o) => o.objectID === objectId
-        ? { ...o, observedStatus: note }
+        ? { ...o, isObserved: draftObserved, notes }
         : o));
       setEditingNoteId(null);
+      // The transaction's counts moved -- refetch rather than recompute here.
+      setRefreshKey((k) => k + 1);
     }
   };
 
@@ -152,6 +173,7 @@ export function ListDetail({
     if (ok) {
       setObjects((prev) => prev.filter((o) => o.objectID !== objectId));
       setTotal((t) => Math.max(0, t - 1));
+      setRefreshKey((k) => k + 1);
     }
     setDeletingItemId(null);
   };
@@ -251,6 +273,11 @@ export function ListDetail({
         )}
       </div>
 
+      <ListProgress summary={summary} visibility={visibility} total={total}
+        hasLocation={Boolean(list.lat && list.lon)}
+        onSetLocation={startHeaderEdit}
+      />
+
       {/* Items */}
       {total === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 text-neutral-content">
@@ -265,19 +292,24 @@ export function ListDetail({
           {objects.map((item) => {
             const isEditingNote = editingNoteId === item.objectID;
             const isDeletingItem = deletingItemId === item.objectID;
-            const hasNote = item.observedStatus
-              && item.observedStatus.toLowerCase() !== NO_NOTE_SENTINEL;
 
             return (
               <div key={item.objectID} className="card card-border border-neutral bg-base-100">
                 <div className="card-body p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <TypeBadge color={TYPE_COLORS[item.objectCategory]}
-                        icon={TYPE_ICONS[item.objectCategory]}
-                        objectType={item.objectCategory}
-                        extraClasses="badge-sm mb-1"
-                      />
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <TypeBadge color={TYPE_COLORS[item.objectCategory]}
+                          icon={TYPE_ICONS[item.objectCategory]}
+                          objectType={item.objectCategory}
+                          extraClasses="badge-sm"
+                        />
+                        {item.isObserved && (
+                          <span className="badge badge-soft badge-success badge-sm font-mono">
+                            <Check size={11} /> Observed
+                          </span>
+                        )}
+                      </div>
                       <h3 className="card-title text-base">{item.name ?? item.objectID}</h3>
                       <p className="text-xs text-neutral-content font-mono">
                         {item.constellation} · Mag {item.magnitude}
@@ -289,8 +321,8 @@ export function ListDetail({
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => startNoteEdit(item.objectID, item.observedStatus)}
-                        title="Edit note"
+                        onClick={() => startNoteEdit(item)}
+                        title="Edit observation"
                         className="btn btn-square btn-sm btn-soft"
                       >
                         <PenLine size={13} />
@@ -325,6 +357,15 @@ export function ListDetail({
                   {/* Note section */}
                   {isEditingNote ? (
                     <div className="mt-3">
+                      <label className="label cursor-pointer justify-start gap-2 mb-2">
+                        <input type="checkbox" checked={draftObserved}
+                          onChange={(e) => setDraftObserved(e.target.checked)}
+                          className="checkbox checkbox-sm checkbox-warning"
+                        />
+                        <span className="text-xs font-mono text-neutral-content">
+                          MARK AS OBSERVED
+                        </span>
+                      </label>
                       <textarea
                         autoFocus
                         value={draftNote}
@@ -349,13 +390,13 @@ export function ListDetail({
                         </button>
                       </div>
                     </div>
-                  ) : hasNote ? (
+                  ) : item.notes ? (
                     <div className="mt-3 rounded-lg bg-base-200 p-3">
-                      <p className="text-sm leading-relaxed opacity-80">{item.observedStatus}</p>
+                      <p className="text-sm leading-relaxed opacity-80">{item.notes}</p>
                     </div>
                   ) : (
                     <button
-                      onClick={() => startNoteEdit(item.objectID, item.observedStatus)}
+                      onClick={() => startNoteEdit(item)}
                       className="btn btn-link btn-xs text-neutral-content hover:text-base-content mt-2 px-0"
                     >
                       + Add observation note

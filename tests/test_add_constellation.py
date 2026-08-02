@@ -54,7 +54,7 @@ def call_procedure(cursor, list_id, constellation):
     """
     cursor.callproc(
         "AddConstellationToList",
-        (list_id, constellation, 'not seen', MAX_MAGNITUDE)
+        (list_id, constellation, MAX_MAGNITUDE)
     )
 
     # A procedure can emit several result sets, so its rows arrive through

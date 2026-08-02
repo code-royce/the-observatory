@@ -66,9 +66,11 @@ export function AddToListDialog({
 
   const handleCreateAndAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !object) return;
-    const created = await onCreateList(newName.trim(), newLat.trim(), newLng.trim());
-    if (created) handleAdd(created.listID);
+    if (!object) return;
+    // Untrimmed, so TrimObservationListName does the trimming.
+    const created = await onCreateList(newName, newLat.trim(), newLng.trim());
+    if (!created) return;
+    handleAdd(created.listID);
     setNewName("");
     setNewLat("");
     setNewLng("");
@@ -168,7 +170,7 @@ export function AddToListDialog({
               onSubmit={handleCreateAndAdd}
               className="flex flex-col gap-2 mt-2 p-3 rounded-lg border border-warning/20 bg-warning/5"
             >
-              <input autoFocus required value={newName}
+              <input autoFocus value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="List name"
                 className="input input-bordered input-sm w-full"

@@ -43,10 +43,12 @@ export function Pager({
         id="page-number"
         type="number"
         value={currentPage}
-        // TODO: fix error 'The specified value "NaN" cannot be parsed, or is
-        // out of range.' when the user backspaces in this input before
-        // entering another number.
-        onChange={(e) => onSetCurrentPage(parseInt(e.target.value))}
+        // Backspacing empties the box, and parseInt("") is NaN, which the
+        // input refuses as a value. Ignore it and wait for a real number.
+        onChange={(e) => {
+          const page = parseInt(e.target.value);
+          if (!Number.isNaN(page)) onSetCurrentPage(page);
+        }}
         className="input validator"
         min="1"
         max={numberOfPages}

@@ -92,7 +92,7 @@ export function AuthModal({ open, onClose, onLogin}: AuthModalProps) {
           </h2>
           <p className="text-sm text-center">
             {signupSuccess
-              ? "Your account is ready. Sign in to get started."
+              ? "Your account is ready, and we started an observation list for you. Sign in to find it under My Lists."
               : mode === "login"
                 ? "Sign in to access your observation lists"
                 : "Create an account to track celestial objects"}

@@ -19,9 +19,9 @@ function formatDate(iso: string): string {
 interface MyListsProps {
   lists: ObservationList[];
   userName: string;
-  latitude?: string | number;
-  longitude?: string | number;
-  onCreate: (name: string, lat: string, lng: string) => void;
+  onCreate: (
+    name: string, lat: string, lng: string
+  ) => Promise<ObservationList | null>;
   onDeleteList: (listId: number) => void;
   onSelectList: (listId: number) => void;
 }
@@ -75,10 +75,13 @@ export function MyLists({
     setDeletingId(null);
   };
 
-  const handleCreate = (e: React.FormEvent) => {
+  // The name goes over untrimmed and unchecked: TrimObservationListName
+  // trims it, and names a blank one for the user. The dialog only closes on
+  // success, so a rejected duplicate name keeps what was typed.
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    onCreate(name.trim(), lat.trim(), lng.trim());
+    const created = await onCreate(name, lat.trim(), lng.trim());
+    if (!created) return;
     setName(""); setLat(""); setLng("");
     setCreateOpen(false);
   };
@@ -200,18 +203,22 @@ export function MyLists({
           <h3 className="text-lg font-bold mb-1">New Observation List</h3>
           <p className="text-sm text-base-content/60 mb-5">
             Name your list and optionally set the observation location.
+            Names are trimmed on the way in.
           </p>
 
           <form onSubmit={handleCreate} className="flex flex-col gap-4">
             <div className="form-control flex flex-col gap-1.5">
               <label htmlFor="list-name" className="label py-0">
-                <span className="label-text text-xs font-mono">LIST NAME *</span>
+                <span className="label-text text-xs font-mono">LIST NAME</span>
               </label>
-              <input id="list-name" autoFocus required value={name}
+              <input id="list-name" autoFocus value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Backyard Summer Sessions"
                 className="input input-bordered w-full text-sm"
               />
+              <span className="text-xs text-base-content/60">
+                Leave blank and one gets named for you.
+              </span>
             </div>
 
             <div className="flex gap-3">
