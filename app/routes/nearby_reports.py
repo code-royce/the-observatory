@@ -20,17 +20,15 @@ NEARBY_REPORTS_QUERY = """
            c.Longitude,
            c.CreatedAt,
            DATEDIFF(NOW(), c.CreatedAt) AS DaysAgo,
-           -- Same 69.17 miles per degree the box predicates below use.
+           -- Same 69.17 miles per degree the box predicates below use
            ROUND(SQRT(POW((c.Latitude - %(lat)s) * 69.17, 2)
                     + POW((c.Longitude - %(lon)s) * 69.17
                           * COS(RADIANS(%(lat)s)), 2)), 1) AS MilesAway,
            COALESCE(AVG(l.LimitingMag), 6) AS AvgLimitingMag,
-           -- Counts readings rather than rows: LimitingMag is NULL where no
-           -- measurement was recorded, and those never reach the average.
            COUNT(l.LimitingMag) AS NearbyObservations
     FROM CommunityReport c
-        -- LEFT, unlike the inner join in reports.py: UserID is nullable, so an
-        -- inner join would silently drop reports written without an author.
+         -- Combine all CommunityReports with any LightPollutionObservations
+         -- within 10 miles
         LEFT JOIN Users u ON u.UserID = c.UserID
         -- Combine all CommunityReports with any LightPollutionObservations
         -- within 10 miles
@@ -46,8 +44,6 @@ NEARBY_REPORTS_QUERY = """
         AND c.Longitude BETWEEN
             %(lon)s - 10 / 69.17 * COS(RADIANS(%(lat)s))
             AND %(lon)s + 10 / 69.17 * COS(RADIANS(%(lat)s))
-    -- Latitude and Longitude are qualified because both joined tables have
-    -- columns by those names.
     GROUP BY c.ReportID,
              c.ReportText,
              u.Name,
