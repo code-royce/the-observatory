@@ -7,11 +7,6 @@ Purpose:
   has, how many of them beat the light pollution where the list is, how many
   were newly added, and how many were already saved.
 
-  There is no Constellation table. CelestialObject.Constellation names the
-  region of sky a star sits in, so "belongs to this constellation" is
-  approximated as the brightest 'connect the dots' stars in that region
-  (Magnitude < parMaxMagnitude).
-
   Adding the members as ordinary SavedObject rows means everything that
   already reads a list keeps working without knowing a constellation was
   involved.
@@ -44,8 +39,6 @@ BEGIN
     DECLARE varAdded INT;
 
     -- Visibility is judged from where the list is, not where the user is.
-    -- A list with no coordinates leaves these NULL; whether the list exists
-    -- at all is left to SavedObject's foreign key on the INSERT below.
     SELECT Latitude, Longitude
     INTO varLatitude, varLongitude
     FROM ObservationList

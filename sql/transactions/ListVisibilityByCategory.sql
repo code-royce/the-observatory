@@ -9,28 +9,6 @@ Purpose:
   ListMetadataByCategory.sql to answer "of what I still want to see, what can
   I actually see tonight from here?"
 
-  Every object on the list is counted, and the light pollution and horizon
-  tests narrow the later columns rather than filtering rows out. Putting
-  either test in the WHERE clause instead would make OnList report the
-  surviving rows rather than the list's real size.
-
-Advanced query: a CTE containing a subquery that cannot be rewritten as a
-join (the nearest-observations lookup selects rows by proximity rank via
-ORDER BY ... LIMIT, not by a join condition), joined to SavedObject and
-CelestialObject and aggregated with GROUP BY.
-
-Runs as the second of two queries inside the read transaction in
-app/routes/lists.py -> list_detail(), at REPEATABLE READ, so its counts
-describe the same snapshot as the metadata query and the separately computed
-row total shown beside them.
-
-The altitude expression is the SQL translation of
-app/horizon_calculator.altitude(); the same translation appears in
-app/routes/visibility.py. The LocalLimit CTE is the nearest-three-
-observations pattern from Query 1 in doc/Database Design.pdf, which falls
-back to a suburban/rural limiting magnitude of 6 when no observation is on
-file nearby.
-
 Parameters:
   list_id  -- ObservationList.ListID to report on
   lat      -- the list's Latitude, degrees
@@ -42,6 +20,7 @@ Parameters:
 WITH LocalLimit AS (
     -- Faintest magnitude visible here, averaged over the three nearest
     -- light pollution observations within roughly 10 miles.
+    -- Default to 6 (suburban/rural conditions).
     SELECT COALESCE(AVG(LimitingMag), 6) AS LimitingMag
     FROM (
         SELECT LimitingMag
@@ -61,11 +40,13 @@ SELECT c.ObjectCategory,
        SUM(c.Magnitude <= l.LimitingMag) AS Observable,
        SUM(
            c.Magnitude <= l.LimitingMag
+           -- SQL translation of python trig in app/horizon_calculator.altitude()
+           -- Finds celestialObjects with current altitudes above the horizon + min_alt
            AND DEGREES(ASIN(
                SIN(RADIANS(c.Declination)) * SIN(RADIANS(%(lat)s))
                + COS(RADIANS(c.Declination)) * COS(RADIANS(%(lat)s))
                    * COS(RADIANS(%(lst)s - c.RightAscension * 15))
-           )) > %(min_alt)s
+           )) > %(min_alt)s    -- min_alt accounts for trees, buildings, refraction, etc.
        ) AS UpNow
 FROM SavedObject s
     JOIN CelestialObject c ON c.ObjectID = s.ObjectID

@@ -19,10 +19,7 @@ def _load_sql(filename):
 
     The advanced queries live in .sql files rather than inline strings so
     they are reviewable next to the project's other SQL, and so a grader or
-    teammate can find them without reading Python. The transaction itself
-    can't move there -- START TRANSACTION/COMMIT are runtime statements the
-    connector has to issue and roll back, not database objects like the
-    procedures and triggers in the sibling folders.
+    teammate can find them without reading Python.
 
     Args:
         filename (str): File name inside sql/transactions/.
@@ -62,9 +59,6 @@ def user_lists(user_id):
               each with an added ObjectCount.
             - total: number of lists returned.
     """
-    # Chose a left join instead of an inner join so that a list without saved
-    # objects can be returned. Empty lists are common since the
-    # CreateDefaultObservationList trigger gives every new user an empty list.
     query = """
         SELECT ol.ListID, ol.UserID, ol.ListName, ol.Latitude, ol.Longitude,
                ol.CreatedAt, COUNT(s.ObjectID) AS ObjectCount
@@ -122,8 +116,6 @@ def list_detail(list_id):
 
     # Applied pagination to this query the same as /api/search because one list
     # can have >100k saved objects.
-    # Unnamed NGC/IC rows sort to the end rather than being dropped, and
-    # ObjectID breaks ties so LIMIT/OFFSET can't skip or repeat a row.
     objects_query = """
         SELECT c.ObjectID, c.Name, c.Magnitude, c.ObjectCategory,
                c.RightAscension, c.Declination, c.Constellation,
@@ -144,11 +136,8 @@ def list_detail(list_id):
 
     with get_db_connection() as conn:
         # `total`, `summary`, and `visibility` come from separate queries and
-        # can't be derived from one another -- LIST_METADATA_QUERY's HAVING
-        # clause drops fully-observed categories, so its counts deliberately
-        # don't sum to `total`. The response hands all three back as though
-        # they describe one list, and REPEATABLE READ is what makes that true
-        # by construction: every statement here reads the same snapshot.
+        # can't be derived from one another. The response hands all three back as though
+        # they describe one list, and REPEATABLE READ is what makes that true.
         conn.start_transaction(isolation_level='REPEATABLE READ')
 
         with conn.cursor(dictionary=True) as cursor:
@@ -156,17 +145,11 @@ def list_detail(list_id):
             observation_list = cursor.fetchone()
 
             if observation_list is None:
-                # Nothing was written, and closing the connection discards the
-                # open snapshot, so there is nothing to roll back.
                 return jsonify({"error": "Observation list not found"}), 404
 
             cursor.execute(LIST_METADATA_QUERY, {"list_id": list_id})
             summary = cursor.fetchall()
 
-            # COUNT() returns an int, but SUM() and ROUND() return Decimals,
-            # which Flask serializes as a JSON string ("90", not 90).
-            # Convert so every number in the summary is actually a number to
-            # the frontend.
             for row in summary:
                 row['Observed'] = int(row['Observed'] or 0)
                 row['CompletionRate'] = int(row['CompletionRate'] or 0)
@@ -200,9 +183,6 @@ def list_detail(list_id):
             cursor.execute(count_query, (list_id,))
             total = cursor.fetchone()['total']
 
-        # Read-only, so there is nothing to persist -- but the snapshot stays
-        # open until the transaction ends, and __exit__ on the connection only
-        # calls close(). Committing releases it explicitly.
         conn.commit()
 
     return jsonify({
@@ -252,14 +232,6 @@ def create_list():
         except (TypeError, ValueError):
             errors.append("user_id must be an integer")
 
-    # No check on list_name: TrimObservationListName trims it, and names a
-    # blank one 'Untitled Observation List'. Rejecting it here would make that
-    # branch of the trigger unreachable through the API.
-
-    # Only convert Latitude and Longitude if they're supplied because they're
-    # both nullable on ObservationList. Their numerical range isn't checked so
-    # that the constraints in sql/constraints/ObservationListCoordinateConstraints.sql
-    # can apply.
     if latitude is not None:
         try:
             latitude = float(latitude)
@@ -307,9 +279,6 @@ def create_list():
             new_id = cursor.lastrowid
             conn.commit()
 
-            # Read the row back rather than echoing the request: CreatedAt is
-            # database-generated, and the TrimObservationListName trigger may
-            # have rewritten ListName on the way in.
             cursor.execute(LIST_COLUMNS, (new_id,))
             new_list = cursor.fetchone()
 
@@ -341,10 +310,6 @@ def update_list(list_id):
 
     errors = []
 
-    # Build the SET clause from whichever fields were sent, so renaming a list
-    # doesn't mean resending its coordinates. The column names are string
-    # literals written here, never anything from the request body, so this
-    # stays safe -- only the values are parameterized.
     assignments = []
     values = []
     list_name = body.get('list_name')
@@ -372,7 +337,7 @@ def update_list(list_id):
         except (TypeError, ValueError):
             errors.append("longitude must be a number")
 
-    # Only complain about an empty body when nothing else went wrong --
+    # Only complain about an empty body when nothing else went wrong,
     # otherwise a single bad latitude reports two confusing errors at once.
     if not assignments and not errors:
         errors.append(
@@ -390,9 +355,6 @@ def update_list(list_id):
 
     with get_db_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
-            # Check existence first. A bare UPDATE can't tell "no such list"
-            # apart from "the values sent matched what was already there",
-            # since both report zero affected rows.
             cursor.execute(LIST_COLUMNS, (list_id,))
             if cursor.fetchone() is None:
                 return jsonify({"error": "Observation list not found"}), 404
@@ -482,9 +444,6 @@ def add_objects(list_id):
 
             cursor.execute(insert_query, values)
 
-            # With ON DUPLICATE KEY UPDATE, MySQL counts 1 for each row it
-            # inserts and 0 for each row whose no-op update changed nothing,
-            # so rowcount is exactly the number of genuinely new rows.
             added = cursor.rowcount
             conn.commit()
 
@@ -528,10 +487,6 @@ def delete_list(list_id):
             if observation_list is None:
                 return jsonify({"error": "Observation list not found"}), 404
 
-            # Counted before the delete, not after. SavedObject's foreign key
-            # is ON DELETE CASCADE, so those rows go with the list on their
-            # own and there's nothing left to count once it's gone. Reporting
-            # the number back is the only visible sign the cascade ran.
             cursor.execute(count_query, (list_id,))
             objects_removed = cursor.fetchone()['total']
 
@@ -587,8 +542,6 @@ def remove_object(list_id, object_id):
 
             conn.commit()
 
-    # Returns a body rather than a bare 204: the frontend's flaskFetch helper
-    # always calls response.json(), which throws on an empty response.
     return jsonify({"data": {
         "list_id": list_id,
         "object_id": object_id,
@@ -623,8 +576,6 @@ def update_saved_object(list_id, object_id):
 
     errors = []
 
-    # Same partial-update shape as update_list: the column names are literals
-    # written here, never taken from the body, so only values are parameterized.
     assignments = []
     values = []
 
@@ -673,8 +624,6 @@ def update_saved_object(list_id, object_id):
 
             cursor.execute(update_query, (*values, list_id, object_id))
 
-            # rowcount is 0 both when no such row exists and when the update
-            # changed nothing, so the row is looked up rather than inferred.
             cursor.execute(read_back, (list_id, object_id))
             updated = cursor.fetchone()
 

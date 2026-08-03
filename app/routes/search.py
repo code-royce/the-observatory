@@ -8,10 +8,7 @@ from app.utils import get_db_connection, handle_db_errors
 search_bp = Blueprint('search', __name__)
 
 # CelestialObject.ObjectCategory stores abbreviated RNGC codes, not the
-# friendly names the frontend/API use. Multiple codes can mean the same
-# thing (e.g. "SS" and "SS?" are both a Star). Two rows in the dataset carry
-# codes outside this scheme ("PD" and a literal "type") -- they're treated
-# as unmapped/malformed and left untranslated rather than guessed at.
+# friendly names the frontend/API use.
 CATEGORY_CODES = {
     "Star": ["Star", "SS", "SS?"],
     "Double Star": ["DS", "DS?"],
@@ -70,7 +67,6 @@ def search():
     # Base query for filtering
     like_pattern = f"%{q}%"
 
-    # Only add the category filter when types were actually selected --
     # an empty IN () clause would match nothing instead of everything.
     type_filter = ""
     if raw_codes:
@@ -111,8 +107,7 @@ def search():
             total = cursor.fetchone()['total']
 
     # Translate each row's raw ObjectCategory code back into the friendly
-    # name the frontend expects. Codes with no known mapping (bad/unmapped
-    # data) are left as-is.
+    # name the frontend expects.
     for row in results:
         row['ObjectCategory'] = CODE_TO_CATEGORY.get(
             row['ObjectCategory'], row['ObjectCategory']
@@ -124,6 +119,7 @@ def search():
         "page": page,
         "limit": limit
     })
+
 
 @search_bp.route('/visible-search', methods=['GET'])
 @handle_db_errors
@@ -172,8 +168,6 @@ def visible_search():
     offset = (page - 1) * limit
     types = request.args.getlist('types')
 
-    # Translate friendly category names to raw DB codes, then join as a
-    # comma-separated string for FIND_IN_SET() in the stored procedure.
     raw_codes = []
     for friendly_name in types:
         raw_codes.extend(CATEGORY_CODES.get(friendly_name, []))

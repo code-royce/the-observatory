@@ -21,9 +21,6 @@ STAR_MAP_MAGNITUDE = 4.5
 # above, and the faintest are background rather than part of the figure.
 STAR_MAP_LIMIT = 20
 
-# Query 1 ("constellation visibility") from doc/Database Design.pdf, with
-# Champaign's hardcoded coordinates and the magnitude cutoff as named
-# parameters. Named rather than positional because lat appears five times.
 CONSTELLATION_VISIBILITY_QUERY = """
     WITH TotalStars AS (
         -- Table 1: Counts every significant star in each constellation
@@ -76,10 +73,6 @@ CONSTELLATION_VISIBILITY_QUERY = """
              StarCount DESC
 """
 
-
-# Feeds the star maps: the same nearest-three-observations lookup as the query
-# above, returning one row per star instead of counts. Rides along in the same
-# response, ~100KB for the whole sky, so expanding a card needs no fetch.
 CONSTELLATION_STARS_QUERY = """
     WITH LocalLimit AS (
         -- Faintest magnitude visible here, averaged over the three nearest
