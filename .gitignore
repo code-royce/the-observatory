@@ -36,6 +36,12 @@ instance/
 *.db
 *.sqlite3
 
+# Database dumps...too large for git. The rows live on a GitHub Release and
+# sql/schema.sql carries the structure. Listed by name so the rest of sql/
+# remains tracked.
+sql/SETUP/app_data.sql
+sql/SETUP/raw_catalogs.sql
+
 # OS files
 .DS_Store
 Thumbs.db

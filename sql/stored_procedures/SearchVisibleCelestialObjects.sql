@@ -1,6 +1,6 @@
-DELIMITER //
+DROP PROCEDURE IF EXISTS SearchVisibleCelestialObjects;
 
-DROP PROCEDURE IF EXISTS SearchVisibleCelestialObjects //
+DELIMITER //
 
 CREATE PROCEDURE SearchVisibleCelestialObjects(
     IN p_Keyword VARCHAR(250),
