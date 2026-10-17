@@ -140,4 +140,4 @@ long file, so multiple people can add routes without editing the same file.
   dependency of `click` that pip installs on its own and that doesn't belong
   in a cross-platform requirements file.
 - **Frontend:** `npm install <pkg>` from `the-observatory/` updates
-  `package.json` and `package-lock.json`. Commit both.
+  `package.json` and `package-lock.json`. Commit both
